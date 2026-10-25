@@ -74,11 +74,38 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .session-chip { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; margin-bottom: 4px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); font-size: 9px; }
 .session-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 9px #91b8ff55; }
 .session-chip-divider { height: 12px; }
+.view-tabs { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-bottom: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: #111410; }
+.view-tab { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid transparent; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; font-size: 10px; font-weight: 550; white-space: nowrap; }
+.view-tab:hover { color: var(--text); background: #1b1f1a; }
+.view-tab.is-active { border-color: #39432d; color: var(--lime); background: #24291d; }
+.view-tab-count { min-width: 18px; padding: 2px 5px; border-radius: 10px; color: #b9c5a3; background: #30372a; font-family: var(--font-mono); font-size: 8px; text-align: center; }
 
 .split-layout { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: start; gap: 21px; padding-bottom: 39px; }
 .input-panel, .dashboard-panel { min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--surface) 96%, transparent); animation: arrive 550ms 75ms ease-out both; }
 .input-panel { position: sticky; top: 22px; padding: 24px; }
 .dashboard-panel { position: relative; padding: 22px; animation-delay: 135ms; scroll-margin-top: 20px; }
+.library-panel { min-height: 390px; padding: 22px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in srgb, var(--surface) 96%, transparent); animation: arrive 300ms ease-out both; }
+.library-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 24px 0 18px; }
+.library-heading h2 { margin: 0; font-size: 22px; font-weight: 560; }
+.library-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.saved-drill-list { display: grid; gap: 14px; }
+.saved-drill-group { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: #181b17; }
+.saved-drill-date { margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); color: #c7cbbd; background: #1c201a; font-family: var(--font-mono); font-size: 9px; font-weight: 500; }
+.saved-drill-card { min-width: 0; display: flex; align-items: center; gap: 13px; padding: 14px; }
+.saved-drill-card + .saved-drill-card { margin-top: 4px; }
+.saved-drill-icon { width: 36px; height: 36px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 5px; color: var(--blue); background: #242e40; }
+.saved-drill-content { min-width: 0; flex: 1; }
+.saved-drill-content h4 { margin: 0; color: #e2e4dc; font-size: 12px; font-weight: 560; overflow-wrap: anywhere; }
+.saved-drill-content p { margin: 5px 0; color: #a8ad9f; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.saved-drill-link, .saved-drill-delete { width: 34px; height: 34px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid var(--border); border-radius: 5px; color: #aebad0; background: #1b2029; cursor: pointer; text-decoration: none; }
+.saved-drill-link:hover, .saved-drill-link:focus-visible { border-color: #526789; color: #c3d8ff; }
+.saved-drill-delete { color: #c38d83; background: #211a19; }
+.saved-drill-delete:hover, .saved-drill-delete:focus-visible { border-color: #895d55; color: #f09b89; }
+.library-empty { min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px; border: 1px dashed var(--border); border-radius: 6px; color: var(--lime); text-align: center; }
+.library-empty h3 { margin: 0; color: var(--text); font-size: 14px; font-weight: 560; }
+.library-empty p { max-width: 360px; margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
+.library-return-button { min-height: 36px; display: inline-flex; align-items: center; gap: 8px; margin-top: 5px; padding: 0 12px; border: 1px solid #536240; border-radius: 4px; color: var(--lime); background: #22291b; cursor: pointer; font-size: 10px; }
+.library-return-button:hover { background: #2c3522; }
 .section-topline { min-width: 0; display: flex; align-items: center; gap: 10px; }
 .section-index { width: 26px; height: 25px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #42483a; border-radius: 5px; color: var(--lime); background: #24291d; font-size: 10px; }
 .section-kicker { flex: 0 0 auto; color: #a0a497; font-size: 9px; }
@@ -147,6 +174,9 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .snapshot-footer { display: flex; align-items: center; gap: 5px; margin-top: 12px; color: #aaa18b; font-size: 7px; }
 .snapshot-footer > svg { color: var(--blue); }
 .snapshot-footer strong { margin-left: auto; color: #c3d1ee; font-size: 7px; font-weight: 500; white-space: nowrap; }
+.dashboard-empty { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; border: 1px dashed var(--border); border-radius: 6px; color: var(--lime); text-align: center; }
+.dashboard-empty p { max-width: 310px; margin: 0; color: #a8ad9f; font-size: 11px; line-height: 1.6; }
+.dashboard-empty strong { color: #e6e8e1; font-weight: 550; }
 
 .insights-card { overflow: hidden; margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; background: #181b17; }
 .strengths-card { border-left: 2px solid #79bd83; }
@@ -163,27 +193,31 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .insight-count { margin-left: auto; padding: 5px 7px; border-radius: 3px; font-size: 7px; white-space: nowrap; }
 .green-count { color: #a4dbad; background: #233226; }
 .red-count { color: #e4a096; background: #342523; }
-.strength-list { padding: 0 13px 11px; }
-.strength-row { min-height: 42px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(46px, 82px) 24px; align-items: center; gap: 10px; border-top: 1px solid var(--border-soft); }
-.strength-name { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.strength-check { width: 16px; height: 16px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #a7e4b0; background: #29382a; font-size: 10px; }
-.strength-name > span:last-child, .weakness-copy, .drill-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.strength-name strong, .weakness-copy strong, .drill-copy strong { overflow: hidden; color: #dbded5; font-size: 10px; font-weight: 530; text-overflow: ellipsis; white-space: nowrap; }
-.strength-name small, .weakness-copy small, .drill-copy small { overflow: hidden; color: #848a7d; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.strength-meter { height: 3px; overflow: hidden; border-radius: 3px; background: #343931; }
-.strength-meter > span { height: 100%; display: block; border-radius: inherit; background: #85c98f; }
-.strength-value { color: #b7c9b5; font-family: var(--font-mono); font-size: 8px; text-align: right; }
+.insight-row-toggle { color: inherit; font: inherit; text-align: left; cursor: pointer; background: transparent; border: 0; }
+.insight-row-copy, .weakness-copy, .drill-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.insight-row-copy strong { overflow: hidden; color: #dbded5; font-size: 10px; font-weight: 530; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.insight-chevron { flex: 0 0 auto; margin-left: auto; color: #909889; transition: transform 160ms ease, color 160ms ease; }
+.insight-row-toggle:hover .insight-chevron, .insight-row-toggle:focus-visible .insight-chevron { color: var(--lime); }
+.insight-row-toggle.is-expanded .insight-chevron { transform: rotate(180deg); }
+.insight-detail-scroll { grid-column: 1 / -1; max-height: 150px; overflow-y: auto; overscroll-behavior: contain; padding: 9px 11px; border: 1px solid var(--border-soft); border-radius: 4px; color: #a8ad9f; background: #111410; font-size: 9px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; scrollbar-color: #59614e #191d17; scrollbar-width: thin; }
+.insight-row-toggle:focus-visible { outline-offset: 2px; }
+.drill-copy strong, .drill-copy small { display: block; overflow-wrap: anywhere; }
+.drill-copy strong { color: #dbded5; font-size: 10px; font-weight: 530; line-height: 1.45; }
+.drill-copy small { color: #848a7d; font-size: 8px; line-height: 1.45; }
 .weakness-list { padding: 0 13px 10px; }
-.weakness-row { min-height: 39px; display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border-soft); }
+.weakness-item { border-top: 1px solid var(--border-soft); }
+.weakness-row { width: 100%; min-height: 39px; display: flex; align-items: center; gap: 10px; padding: 9px 0; }
 .weakness-number { color: #ba8178; font-family: var(--font-mono); font-size: 8px; }
-.weakness-arrow { flex: 0 0 auto; margin-left: auto; color: #8c655f; }
+.strengths-card .strength-number { color: #83b98a; font-family: var(--font-mono); font-size: 8px; }
 .drills-header { padding-bottom: 12px; }
 .drill-time { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: #afc7f2; font-size: 8px; }
 .drill-list { padding: 0 13px; }
-.drill-row { min-height: 44px; display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--border-soft); }
+.drill-row { min-height: 44px; display: flex; align-items: flex-start; gap: 9px; padding: 9px 0; border-top: 1px solid var(--border-soft); }
 .drill-number { color: #7489a8; font-family: var(--font-mono); font-size: 8px; }
 .drill-icon { width: 24px; height: 24px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 4px; color: #a8c6fb; background: #252f41; }
 .drill-arrow { flex: 0 0 auto; margin-left: auto; color: #7487a2; }
+.drill-row > a { display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 32px; margin-left: auto; }
+.drill-row > a:hover .drill-arrow, .drill-row > a:focus-visible .drill-arrow { color: #c3d8ff; }
 .drill-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 13px; border-top: 1px solid var(--border); color: #8890a0; background: #191d24; font-size: 7px; }
 .footer-divider { padding-inline: 3px; color: #535a65; }
 .dashboard-footer { display: flex; justify-content: space-between; gap: 8px; padding-top: 13px; color: #888e81; font-size: 7px; }
@@ -243,8 +277,16 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
   .page-heading h1 { font-size: clamp(31px, 8vw, 40px); }
   .page-description { max-width: 300px; font-size: 12px; line-height: 1.6; }
   .session-chip { margin-bottom: 0; padding: 7px 9px; font-size: 8px; }
+  .view-tabs { width: 100%; margin-bottom: 0; }
+  .view-tab { flex: 1; gap: 5px; padding-inline: 7px; font-size: 9px; }
   .input-panel { padding: 18px 15px; }
   .dashboard-panel { padding: 17px 13px; }
+  .library-panel { min-height: 350px; padding: 17px 13px; }
+  .saved-drill-card { gap: 8px; padding: 10px; }
+  .saved-drill-date { padding: 10px; }
+  .saved-drill-icon { width: 31px; height: 31px; }
+  .saved-drill-link, .saved-drill-delete { width: 30px; height: 30px; }
+  .library-heading h2 { font-size: 20px; }
   .section-topline { gap: 7px; }
   .section-kicker { font-size: 8px; }
   .sample-label { gap: 5px; font-size: 7px; }
@@ -264,8 +306,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
   .insight-title h3 { font-size: 11px; }
   .insight-title p { font-size: 8px; }
   .insight-count { padding: 4px 5px; font-size: 6px; }
-  .strength-list, .weakness-list, .drill-list { padding-right: 10px; padding-left: 10px; }
-  .strength-row { grid-template-columns: minmax(0, 1fr) 52px 20px; gap: 7px; }
+  .weakness-list, .drill-list { padding-right: 10px; padding-left: 10px; }
   .dashboard-footer { font-size: 6px; }
   .page-footer { font-size: 7px; }
   .page-footer > span:first-child > span { font-size: 6px; }

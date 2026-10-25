@@ -6,27 +6,57 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  ChevronDown,
   Clock3,
   Dumbbell,
   Gauge,
   LoaderCircle,
+  Library,
   ShieldCheck,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
   Zap,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-type Strength = { name: string; detail: string; value?: number };
+type Strength = { name: string; detail: string };
 type Weakness = { name: string; detail: string };
 type Drill = { name: string; detail: string; icon: typeof Target };
+type SavedDrill = { id: string; name: string; detail: string; savedAt: string };
+type AnalysisInsight = { name: string; detail: string };
 type AnalysisResult = {
   rating: number;
-  strengths: string[];
-  weaknesses: string[];
+  strengths: AnalysisInsight[];
+  weaknesses: AnalysisInsight[];
   drills: string[];
 };
+
+const SAVED_DRILLS_KEY = "nextlevel-saved-drills";
+const SAVED_DRILLS_EVENT = "nextlevel-saved-drills-change";
+
+function subscribeToSavedDrills(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(SAVED_DRILLS_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(SAVED_DRILLS_EVENT, onStoreChange);
+  };
+}
+
+function getSavedDrillsSnapshot() {
+  try {
+    return window.localStorage.getItem(SAVED_DRILLS_KEY) ?? "";
+  } catch (error) {
+    console.error("[drill-library] Could not read saved drills", error);
+    return "";
+  }
+}
+
+function getServerSavedDrillsSnapshot() {
+  return "";
+}
 
 function isAnalysisResult(value: unknown): value is AnalysisResult {
   if (typeof value !== "object" || value === null) {
@@ -34,6 +64,20 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
   }
 
   const result = value as Record<string, unknown>;
+  const hasThreeInsights = (items: unknown) =>
+    Array.isArray(items) &&
+    items.length === 3 &&
+    items.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "name" in item &&
+        typeof item.name === "string" &&
+        item.name.trim().length > 0 &&
+        "detail" in item &&
+        typeof item.detail === "string" &&
+        item.detail.trim().length > 0,
+    );
   const hasThreeStrings = (items: unknown) =>
     Array.isArray(items) &&
     items.length === 3 &&
@@ -44,16 +88,36 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
     Number.isFinite(result.rating) &&
     result.rating >= 1 &&
     result.rating <= 10 &&
-    hasThreeStrings(result.strengths) &&
-    hasThreeStrings(result.weaknesses) &&
+    hasThreeInsights(result.strengths) &&
+    hasThreeInsights(result.weaknesses) &&
     hasThreeStrings(result.drills)
   );
 }
 
+function isSavedDrillList(value: unknown): value is SavedDrill[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "id" in item &&
+        typeof item.id === "string" &&
+        "name" in item &&
+        typeof item.name === "string" &&
+        "detail" in item &&
+        typeof item.detail === "string" &&
+        "savedAt" in item &&
+        typeof item.savedAt === "string" &&
+        Number.isFinite(Date.parse(item.savedAt)),
+    )
+  );
+}
+
 const initialStrengths: Strength[] = [
-  { name: "Spatial awareness", detail: "Finds pockets of space early", value: 88 },
-  { name: "First touch", detail: "Clean control under pressure", value: 82 },
-  { name: "Work rate", detail: "Consistent defensive recovery", value: 76 },
+  { name: "Spatial awareness", detail: "Finds pockets of space early" },
+  { name: "First touch", detail: "Clean control under pressure" },
+  { name: "Work rate", detail: "Consistent defensive recovery" },
 ];
 
 const initialWeaknesses: Weakness[] = [
@@ -81,6 +145,28 @@ const initialDrills: Drill[] = [
 ];
 
 export default function Home() {
+  const [activeView, setActiveView] = useState<"session" | "library">("session");
+  const savedDrillsJson = useSyncExternalStore(
+    subscribeToSavedDrills,
+    getSavedDrillsSnapshot,
+    getServerSavedDrillsSnapshot,
+  );
+  const savedDrills = useMemo(() => {
+    if (!savedDrillsJson) {
+      return [];
+    }
+    try {
+      const parsed: unknown = JSON.parse(savedDrillsJson);
+      if (isSavedDrillList(parsed)) {
+        return parsed;
+      }
+      console.error("[drill-library] Saved drill data has an unexpected format.");
+    } catch (error) {
+      console.error("[drill-library] Could not parse saved drills", error);
+    }
+    return [];
+  }, [savedDrillsJson]);
+  const [storageError, setStorageError] = useState("");
   const [profile, setProfile] = useState("");
   const [feedback, setFeedback] = useState("");
   const [score, setScore] = useState(8.4);
@@ -93,7 +179,36 @@ export default function Home() {
   const [strengths, setStrengths] = useState(initialStrengths);
   const [weaknesses, setWeaknesses] = useState(initialWeaknesses);
   const [drills, setDrills] = useState(initialDrills);
+  const [expandedInsights, setExpandedInsights] = useState<Set<string>>(new Set());
   const dashboardRef = useRef<HTMLElement>(null);
+
+  function persistSavedDrills(nextDrills: SavedDrill[]) {
+    try {
+      const serialized = JSON.stringify(nextDrills);
+      window.localStorage.setItem(SAVED_DRILLS_KEY, serialized);
+      window.dispatchEvent(new Event(SAVED_DRILLS_EVENT));
+      setStorageError("");
+    } catch (error) {
+      console.error("[drill-library] Could not save drills", error);
+      setStorageError("Changes could not be saved in this browser.");
+    }
+  }
+
+  function removeSavedDrill(id: string) {
+    persistSavedDrills(savedDrills.filter((drill) => drill.id !== id));
+  }
+
+  function toggleInsight(id: string) {
+    setExpandedInsights((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   async function handleAnalyze(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -174,14 +289,12 @@ export default function Home() {
       setScore(data.rating);
       setStrengths(
         data.strengths.map((strength) => ({
-          name: strength,
-          detail: "Identified from your match notes",
+          ...strength,
         })),
       );
       setWeaknesses(
         data.weaknesses.map((weakness) => ({
-          name: weakness,
-          detail: "Development area from your match notes",
+          ...weakness,
         })),
       );
       setDrills(
@@ -191,6 +304,16 @@ export default function Home() {
           icon: [Target, Activity, Zap][index],
         })),
       );
+      const savedAt = new Date().toISOString();
+      persistSavedDrills([
+        ...data.drills.map((drill) => ({
+          id: crypto.randomUUID(),
+          name: drill,
+          detail: "Recommended for this player",
+          savedAt,
+        })),
+        ...savedDrills,
+      ]);
       setConfidence(0);
       setHasAnalyzed(true);
     } catch (error) {
@@ -208,6 +331,21 @@ export default function Home() {
       setIsAnalyzing(false);
     }
   }
+
+  const savedDrillGroups = savedDrills.reduce<
+    { dateKey: string; savedAt: string; drills: SavedDrill[] }[]
+  >((groups, drill) => {
+    const dateKey = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+      new Date(drill.savedAt),
+    );
+    const group = groups.find((item) => item.dateKey === dateKey);
+    if (group) {
+      group.drills.push(drill);
+    } else {
+      groups.push({ dateKey, savedAt: drill.savedAt, drills: [drill] });
+    }
+    return groups;
+  }, []);
 
   return (
     <main className="workspace">
@@ -234,10 +372,37 @@ export default function Home() {
           <h1>Make every session <span>count.</span></h1>
           <p className="page-description">Turn the coach&apos;s eye into a clearer plan for the pitch.</p>
         </div>
-        <div className="session-chip"><span className="session-chip-dot" /> SESSION BUILDER <span className="session-chip-divider" /> 01</div>
+        <nav className="view-tabs" aria-label="Main views" role="tablist">
+          <button
+            id="session-tab"
+            className={`view-tab${activeView === "session" ? " is-active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={activeView === "session"}
+            aria-controls="session-view"
+            onClick={() => setActiveView("session")}
+          >
+            <Dumbbell size={14} aria-hidden="true" />
+            Session Builder
+          </button>
+          <button
+            id="library-tab"
+            className={`view-tab${activeView === "library" ? " is-active" : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={activeView === "library"}
+            aria-controls="library-view"
+            onClick={() => setActiveView("library")}
+          >
+            <Library size={14} aria-hidden="true" />
+            Drill Library
+            <span className="view-tab-count">{savedDrills.length}</span>
+          </button>
+        </nav>
       </section>
 
-      <div className="split-layout">
+      {activeView === "session" ? (
+      <div className="split-layout" id="session-view" role="tabpanel" aria-labelledby="session-tab">
         <section className="input-panel" aria-labelledby="input-heading">
           <div className="section-topline">
             <div className="section-index">01</div>
@@ -298,19 +463,29 @@ export default function Home() {
             <div className="section-index">02</div>
             <span className="section-kicker">THE SCOUT&apos;S VIEW</span>
             <span className="section-line" />
-            <span className="sample-label"><span /> {hasAnalyzed ? "SESSION ANALYSIS" : "SAMPLE ANALYSIS"}</span>
+            <span className="sample-label"><span /> {hasAnalyzed ? "SESSION ANALYSIS" : "AWAITING ANALYSIS"}</span>
           </div>
 
           <div className="dashboard-title-row">
             <div>
               <h2 id="dashboard-heading">Analysis dashboard</h2>
-              <p className="player-line"><span className="player-indicator" /> {playerName} <span className="player-divider">/</span> {playerMeta}</p>
+              <p className="player-line">
+                {hasAnalyzed ? (
+                  <><span className="player-indicator" /> {playerName} <span className="player-divider">/</span> {playerMeta}</>
+                ) : (
+                  "Your report will appear here after analysis"
+                )}
+              </p>
             </div>
-            <button className="icon-button" type="button" aria-label="Analysis updated just now" title="Updated just now">
-              <Clock3 size={16} aria-hidden="true" />
-            </button>
+            {hasAnalyzed && (
+              <button className="icon-button" type="button" aria-label="Analysis updated just now" title="Updated just now">
+                <Clock3 size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
 
+          {hasAnalyzed ? (
+            <>
           <div className="overview-grid">
             <article className="score-card">
               <div className="score-topline"><Gauge size={15} /> OVERALL RATING <span className="live-score-indicator" /></div>
@@ -343,14 +518,35 @@ export default function Home() {
               <div className="insight-title"><h3>Strengths</h3><p>Where the game comes naturally.</p></div>
               <span className="insight-count green-count">03 AREAS</span>
             </div>
-            <div className="strength-list">
-              {strengths.map((strength) => (
-                <div className="strength-row" key={strength.name}>
-                  <div className="strength-name"><span className="strength-check">✓</span><span><strong>{strength.name}</strong><small>{strength.detail}</small></span></div>
-                  <div className="strength-meter">{strength.value !== undefined && <span style={{ width: `${strength.value}%` }} />}</div>
-                  <span className="strength-value">{strength.value ?? ""}</span>
-                </div>
-              ))}
+            <div className="weakness-list">
+              {strengths.map((strength, index) => {
+                const insightId = `strength-${index}`;
+                const isExpanded = expandedInsights.has(insightId);
+                return (
+                  <div className="weakness-item" key={`${insightId}-${strength.name}`}>
+                    <button
+                      className={`weakness-row insight-row-toggle${isExpanded ? " is-expanded" : ""}`}
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={`${insightId}-details`}
+                      onClick={() => toggleInsight(insightId)}
+                    >
+                      <span className="strength-number" aria-hidden="true">0{index + 1}</span>
+                      <span className="weakness-copy insight-row-copy"><strong>{strength.name}</strong></span>
+                      <ChevronDown className="insight-chevron" size={14} aria-hidden="true" />
+                    </button>
+                    <div
+                      id={`${insightId}-details`}
+                      className="insight-detail-scroll"
+                      role="region"
+                      aria-label={`${strength.name} details`}
+                      hidden={!isExpanded}
+                    >
+                      {strength.detail}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </article>
 
@@ -361,13 +557,34 @@ export default function Home() {
               <span className="insight-count red-count">03 FOCUS AREAS</span>
             </div>
             <div className="weakness-list">
-              {weaknesses.map((weakness, index) => (
-                <div className="weakness-row" key={weakness.name}>
-                  <span className="weakness-number">0{index + 1}</span>
-                  <span className="weakness-copy"><strong>{weakness.name}</strong><small>{weakness.detail}</small></span>
-                  <ArrowRight className="weakness-arrow" size={14} />
-                </div>
-              ))}
+              {weaknesses.map((weakness, index) => {
+                const insightId = `weakness-${index}`;
+                const isExpanded = expandedInsights.has(insightId);
+                return (
+                  <div className="weakness-item" key={`${insightId}-${weakness.name}`}>
+                    <button
+                      className={`weakness-row insight-row-toggle${isExpanded ? " is-expanded" : ""}`}
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-controls={`${insightId}-details`}
+                      onClick={() => toggleInsight(insightId)}
+                    >
+                      <span className="weakness-number" aria-hidden="true">0{index + 1}</span>
+                      <span className="weakness-copy insight-row-copy"><strong>{weakness.name}</strong></span>
+                      <ChevronDown className="insight-chevron" size={14} aria-hidden="true" />
+                    </button>
+                    <div
+                      id={`${insightId}-details`}
+                      className="insight-detail-scroll"
+                      role="region"
+                      aria-label={`${weakness.name} details`}
+                      hidden={!isExpanded}
+                    >
+                      {weakness.detail}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </article>
 
@@ -385,7 +602,14 @@ export default function Home() {
                     <span className="drill-number">0{index + 1}</span>
                     <span className="drill-icon"><DrillIcon size={15} /></span>
                     <span className="drill-copy"><strong>{drill.name}</strong><small>{drill.detail}</small></span>
-                    <ArrowRight className="drill-arrow" size={15} />
+                    <a
+                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${drill.name} soccer drill tutorial`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Find a YouTube tutorial for ${drill.name}`}
+                    >
+                      <ArrowRight className="drill-arrow" size={15} />
+                    </a>
                   </div>
                 );
               })}
@@ -394,9 +618,18 @@ export default function Home() {
           </article>
 
           <footer className="dashboard-footer">
-            <span><span className="footer-live-dot" /> {hasAnalyzed ? "JUST ANALYZED" : "DEMO DATA"}</span>
+            <span><span className="footer-live-dot" /> JUST ANALYZED</span>
             <span>BUILT FOR THE NEXT 90 MINUTES <Zap size={12} /></span>
           </footer>
+            </>
+          ) : (
+            !isAnalyzing && (
+              <div className="dashboard-empty">
+                <Sparkles size={20} aria-hidden="true" />
+                <p>Enter the player profile and match notes, then select <strong>Analyze performance</strong> to see the results.</p>
+              </div>
+            )
+          )}
 
           {isAnalyzing && (
             <div className="analysis-loading" role="status" aria-live="polite">
@@ -413,6 +646,69 @@ export default function Home() {
           )}
         </section>
       </div>
+      ) : (
+        <section className="library-panel" id="library-view" role="tabpanel" aria-labelledby="library-tab">
+          <div className="section-topline">
+            <div className="section-index"><Library size={14} aria-hidden="true" /></div>
+            <span className="section-kicker">YOUR SAVED TRAINING</span>
+            <span className="section-line" />
+            <span className="sample-label"><span /> {savedDrills.length} SAVED</span>
+          </div>
+          <div className="library-heading">
+            <div>
+              <h2>Drill Library</h2>
+              <p>Your recommended drills, saved so you can come back to them anytime.</p>
+            </div>
+          </div>
+          {storageError && <p className="analysis-error" role="alert">{storageError}</p>}
+          {savedDrills.length > 0 ? (
+            <div className="saved-drill-list">
+              {savedDrillGroups.map((group) => (
+                <section className="saved-drill-group" key={group.dateKey} aria-label={`Drills saved ${group.dateKey}`}>
+                  <h3 className="saved-drill-date">
+                    <time dateTime={group.savedAt}>{group.dateKey}</time>
+                  </h3>
+                  {group.drills.map((drill) => (
+                    <article className="saved-drill-card" key={drill.id}>
+                      <div className="saved-drill-icon"><Target size={17} aria-hidden="true" /></div>
+                      <div className="saved-drill-content">
+                        <h4>{drill.name}</h4>
+                        <p>{drill.detail}</p>
+                      </div>
+                      <a
+                        className="saved-drill-link"
+                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(`${drill.name} soccer drill tutorial`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Find a YouTube tutorial for ${drill.name}`}
+                      >
+                        <ArrowRight size={16} aria-hidden="true" />
+                      </a>
+                      <button
+                        className="saved-drill-delete"
+                        type="button"
+                        aria-label={`Remove ${drill.name} from your drill library`}
+                        onClick={() => removeSavedDrill(drill.id)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </article>
+                  ))}
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="library-empty">
+              <Library size={23} aria-hidden="true" />
+              <h3>Your library is empty</h3>
+              <p>Analyze a session and its recommended drills will be saved here automatically.</p>
+              <button type="button" className="library-return-button" onClick={() => setActiveView("session")}>
+                Go to Session Builder <ArrowRight size={14} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       <footer className="page-footer"><span>NextLevel <span>PERFORMANCE STUDIO</span></span><span>BETTER SESSIONS. BETTER PLAYERS.</span></footer>
     </main>

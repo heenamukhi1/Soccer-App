@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_PROMPT =
-  'You are an elite soccer coach. Analyze the match notes for this player. Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of 3 strings), "weaknesses" (an array of 3 strings), and "drills" (an array of 3 strings).';
+  'You are an elite soccer coach. Analyze the player profile and match notes. Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of exactly 3 objects, each with "name" as a concise skill title and "detail" as a specific, evidence-based explanation tied to the provided match notes), "weaknesses" (an array of exactly 3 objects, each with "name" as a concise development-area title and "detail" as a specific explanation of what happened, why it matters, and what to improve), and "drills" (an array of exactly 3 actionable soccer drill strings). Do not invent observations that are not supported by the profile or notes. Make each explanation concrete and useful, not generic.';
 
 const MAX_INPUT_LENGTH = 10_000;
 const MODEL = "gemini-3.8-flash";
@@ -23,9 +23,14 @@ function respond(body: unknown, requestId: string, status = 200) {
 
 type AnalysisResult = {
   rating: number;
-  strengths: string[];
-  weaknesses: string[];
+  strengths: AnalysisInsight[];
+  weaknesses: AnalysisInsight[];
   drills: string[];
+};
+
+type AnalysisInsight = {
+  name: string;
+  detail: string;
 };
 
 function isInputText(value: unknown): value is string {
@@ -46,6 +51,24 @@ function isThreeStrings(value: unknown): value is string[] {
   );
 }
 
+function isThreeInsights(value: unknown): value is AnalysisInsight[] {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "name" in item &&
+        typeof item.name === "string" &&
+        item.name.trim().length > 0 &&
+        "detail" in item &&
+        typeof item.detail === "string" &&
+        item.detail.trim().length > 0,
+    )
+  );
+}
+
 function isAnalysisResult(value: unknown): value is AnalysisResult {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -59,8 +82,8 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
     Number.isFinite(result.rating) &&
     result.rating >= 1 &&
     result.rating <= 10 &&
-    isThreeStrings(result.strengths) &&
-    isThreeStrings(result.weaknesses) &&
+    isThreeInsights(result.strengths) &&
+    isThreeInsights(result.weaknesses) &&
     isThreeStrings(result.drills)
   );
 }
@@ -135,11 +158,9 @@ export async function POST(request: Request) {
     });
 
     const text = response.text;
-    console.info("[api/analyze] Gemini response", {
-      requestId,
-      model: MODEL,
-      text: text ?? null,
-    });
+    console.info(
+      `[api/analyze] Gemini response JSON (${requestId}):\n${text ?? "<empty response>"}`,
+    );
 
     if (!text) {
       console.warn("[api/analyze] Gemini returned an empty response", { requestId, model: MODEL });
