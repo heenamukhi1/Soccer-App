@@ -20,7 +20,28 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Google sign-in
+
+The home page introduces NextLevel. Signing in with Google opens the protected session
+builder at `/session-builder`.
+
+1. In Google Cloud Console, create an OAuth 2.0 Client ID for a **Web application**.
+2. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
+3. If `.env.local` does not exist yet, copy `.env.example` to it. Otherwise, add
+   `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` to the existing file without replacing
+   any settings already there.
+4. Set `AUTH_SECRET` to a new random secret. You can generate one with
+   `openssl rand -base64 32`.
+5. Keep `GOOGLE_API_KEY` set in `.env.local` if you want to use Gemini analysis,
+   then restart the development server.
+
+`GOOGLE_API_KEY` is only for Gemini analysis; it is not a Google sign-in credential.
+
+Never commit `.env.local` or share its secrets. The session builder and its analysis
+endpoint both require a signed-in Google account.
+
+Edit the landing page in `src/app/page.tsx` or the session builder in
+`src/app/session-builder/SessionBuilder.tsx`. The page auto-updates as you edit.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

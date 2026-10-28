@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { auth } from "@/auth";
 
 const SYSTEM_PROMPT =
   'You are an elite soccer coach. Analyze the player profile and match notes. Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of exactly 3 objects, each with "name" as a concise skill title and "detail" as a specific, evidence-based explanation tied to the provided match notes), "weaknesses" (an array of exactly 3 objects, each with "name" as a concise development-area title and "detail" as a specific explanation of what happened, why it matters, and what to improve), and "drills" (an array of exactly 3 actionable soccer drill strings). Do not invent observations that are not supported by the profile or notes. Make each explanation concrete and useful, not generic.';
@@ -92,6 +93,16 @@ export async function POST(request: Request) {
   const requestId = getRequestId(request);
   const startedAt = Date.now();
   console.info("[api/analyze] Request received", { requestId });
+
+  const session = await auth();
+
+  if (!session?.user) {
+    console.warn("[api/analyze] Request rejected", {
+      requestId,
+      reason: "unauthenticated",
+    });
+    return respond({ error: "Sign in to analyze a session." }, requestId, 401);
+  }
 
   let body: unknown;
 

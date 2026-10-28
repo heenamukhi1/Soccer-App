@@ -315,3 +315,74 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+.landing { min-height: 100vh; display: flex; flex-direction: column; }
+.landing-top-note { color: var(--text-secondary); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0; }
+.landing-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 0.82fr); align-items: center; gap: clamp(36px, 8vw, 110px); padding: clamp(54px, 9vw, 112px) 0 83px; }
+.landing-copy { max-width: 590px; }
+.landing-copy h1 { margin: 18px 0 17px; font-size: clamp(42px, 6vw, 69px); font-weight: 570; line-height: 1.02; letter-spacing: -1.5px; }
+.landing-copy h1 > span { color: var(--lime); }
+.landing-lede { max-width: 500px; margin: 0 0 27px; color: var(--text-secondary); font-size: 15px; line-height: 1.8; }
+.google-sign-in { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 12px; padding: 0 18px; border: 1px solid var(--lime); border-radius: 5px; color: #161b11; background: var(--lime); cursor: pointer; font-size: 13px; font-weight: 650; transition: background 160ms, transform 160ms, box-shadow 160ms; }
+.google-sign-in:hover { transform: translateY(-1px); background: #d5ff83; box-shadow: 0 6px 23px #c7f36320; }
+.google-sign-in:disabled { transform: none; cursor: not-allowed; opacity: 0.65; box-shadow: none; }
+.google-mark { width: 18px; height: 18px; }
+.landing-sign-in-note { display: flex; align-items: center; gap: 7px; margin: 13px 0 0; color: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+.landing-sign-in-note svg { color: var(--green); }
+.landing-sign-in-setup { max-width: 430px; margin: 13px 0 0; color: var(--coral); font-size: 11px; line-height: 1.65; }
+.landing-preview { padding: 23px; border: 1px solid var(--border); border-radius: 8px; background: linear-gradient(145deg, #1a1e18, #141713); box-shadow: 0 20px 70px #00000024; animation: arrive 550ms 100ms ease-out both; }
+.preview-topline { display: flex; align-items: center; gap: 9px; color: #aab09f; font-family: var(--font-mono); font-size: 9px; }
+.preview-icon { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #536240; border-radius: 8px; color: var(--lime); background: #22291b; }
+.preview-live { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #d2bd84; font-size: 8px; }
+.preview-live i { width: 6px; height: 6px; border-radius: 50%; background: #dfbc6e; }
+.preview-rating { display: flex; align-items: center; gap: 17px; padding: 27px 0 22px; }
+.preview-score { color: var(--lime); font-size: 39px; font-weight: 600; letter-spacing: -1px; }
+.preview-score span { margin-left: 3px; color: #969b8f; font-family: var(--font-mono); font-size: 11px; font-weight: 400; letter-spacing: 0; }
+.preview-rating > div:last-child { display: flex; flex-direction: column; gap: 6px; }
+.preview-rating strong { color: #e7e9e1; font-size: 12px; font-weight: 560; }
+.preview-rating small { color: var(--text-secondary); font-size: 10px; }
+.preview-divider { height: 1px; background: var(--border); }
+.preview-item { display: flex; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--border-soft); }
+.preview-item-icon { width: 32px; height: 32px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 5px; }
+.preview-strength { color: var(--green); background: #202b22; }
+.preview-focus { color: var(--coral); background: #2b211e; }
+.preview-item > div { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 5px; }
+.preview-item strong { color: #e3e5de; font-size: 11px; font-weight: 560; }
+.preview-item small { color: var(--text-secondary); font-size: 9px; line-height: 1.5; }
+.preview-item > svg { flex: 0 0 auto; color: #7e8578; }
+.preview-foot { display: flex; align-items: center; gap: 9px; padding-top: 17px; color: #999e91; font-family: var(--font-mono); font-size: 7px; }
+.preview-foot-line { height: 1px; flex: 1; background: #34392f; }
+.landing-benefits { padding: 0 0 67px; }
+.landing-section-heading { padding-bottom: 22px; }
+.landing-section-heading h2, .landing-bottom h2 { margin: 9px 0 0; color: var(--text); font-size: clamp(20px, 3vw, 27px); font-weight: 560; letter-spacing: -0.3px; }
+.benefit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.benefit-card { position: relative; min-height: 174px; padding: 21px; border: 1px solid var(--border); border-radius: 6px; background: #151814; }
+.benefit-number { position: absolute; top: 20px; right: 20px; color: #73796d; font-family: var(--font-mono); font-size: 9px; }
+.benefit-icon { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #39442d; border-radius: 5px; color: var(--lime); background: #20251a; }
+.benefit-card h3 { margin: 17px 0 7px; color: #e5e7df; font-size: 13px; font-weight: 560; }
+.benefit-card p { max-width: 300px; margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.7; }
+.landing-bottom { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: auto; padding: 23px 0 27px; border-top: 1px solid var(--border); }
+.landing-bottom h2 { font-size: clamp(18px, 2.5vw, 22px); }
+.auth-loading { min-height: 100vh; display: grid; place-items: center; color: var(--text-secondary); }
+.sign-out-control { display: flex; flex-direction: column; align-items: end; gap: 4px; }
+.sign-out-button { padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); background: var(--surface-raised); cursor: pointer; font-size: 10px; }
+.sign-out-button:hover { border-color: #536240; color: var(--lime); }
+.sign-out-error { max-width: 180px; color: var(--coral); font-size: 9px; text-align: right; }
+
+@media (max-width: 760px) {
+  .landing-hero { grid-template-columns: 1fr; gap: 38px; padding: 55px 0 54px; }
+  .landing-copy { max-width: 620px; }
+  .landing-preview { width: min(100%, 520px); }
+  .benefit-grid { grid-template-columns: 1fr; }
+  .benefit-card { min-height: auto; }
+  .benefit-card p { max-width: 440px; }
+  .landing-benefits { padding-bottom: 42px; }
+}
+
+@media (max-width: 540px) {
+  .landing-top-note { max-width: 95px; font-size: 7px; text-align: right; }
+  .landing-copy h1 { font-size: clamp(39px, 11vw, 55px); letter-spacing: -1px; }
+  .landing-lede { font-size: 13px; }
+  .landing-preview { padding: 17px; }
+  .landing-bottom { align-items: start; flex-direction: column; }
+}
