@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_PROMPT =
-  'You are an elite soccer coach. Analyze the player profile and match notes. Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of exactly 3 objects, each with "name" as a concise skill title and "detail" as a specific, evidence-based explanation tied to the provided match notes), "weaknesses" (an array of exactly 3 objects, each with "name" as a concise development-area title and "detail" as a specific explanation of what happened, why it matters, and what to improve), and "drills" (an array of exactly 3 actionable soccer drill strings). Do not invent observations that are not supported by the profile or notes. Make each explanation concrete and useful, not generic.';
+  'You are an elite soccer coach. Analyze the player profile and any provided match notes, attached PDF reports, and/or screenshots/images (e.g., match stats, scouting reports, tactical heatmaps, or whiteboard notes). Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of exactly 3 objects, each with "name" as a concise skill title and "detail" as a specific, evidence-based explanation tied to the provided notes, documents, or images), "weaknesses" (an array of exactly 3 objects, each with "name" as a concise development-area title and "detail" as a specific explanation of what happened, why it matters, and what to improve), and "drills" (an array of exactly 3 actionable soccer drill strings). Do not invent observations that are not supported by the profile, notes, or uploaded documents/images. Make each explanation concrete and useful, not generic.';
 
 const MAX_INPUT_LENGTH = 10_000;
 const MODEL = "gemini-3.8-flash";
@@ -104,23 +104,106 @@ export async function POST(request: Request) {
 
   if (typeof body !== "object" || body === null) {
     console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_body" });
-    return respond({ error: "A player profile and match notes are required." }, requestId, 400);
+    return respond({ error: "A player profile and feedback notes or attachments (PDF/images) are required." }, requestId, 400);
   }
 
   const input = body as Record<string, unknown>;
 
-  if (!isInputText(input.playerProfile) || !isInputText(input.matchNotes)) {
-    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_input" });
+  if (!isInputText(input.playerProfile)) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_profile" });
     return respond(
       {
-        error: `Player profile and match notes must each contain 1–${MAX_INPUT_LENGTH} characters.`,
+        error: `Player profile must contain 1–${MAX_INPUT_LENGTH} characters.`,
       },
       requestId,
       400,
     );
   }
 
-  const apiKey = process.env.GOOGLE_API_KEY;
+  const hasNotes = typeof input.matchNotes === "string" && input.matchNotes.trim().length > 0;
+
+  const ALLOWED_MIME_TYPES = new Set([
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/gif",
+  ]);
+
+  type UploadedFile = {
+    base64: string;
+    mimeType: string;
+    name?: string;
+  };
+
+  const incomingFiles: UploadedFile[] = [];
+
+  // Check array of files
+  if (Array.isArray(input.files)) {
+    for (const item of input.files) {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        typeof item.base64 === "string" &&
+        item.base64.length > 0 &&
+        item.base64.length <= 25_000_000 &&
+        typeof item.mimeType === "string" &&
+        ALLOWED_MIME_TYPES.has(item.mimeType.toLowerCase())
+      ) {
+        incomingFiles.push({
+          base64: item.base64.includes(",") ? item.base64.split(",")[1] : item.base64,
+          mimeType: item.mimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : item.mimeType.toLowerCase(),
+          name: typeof item.name === "string" ? item.name : undefined,
+        });
+      }
+    }
+  }
+
+  // Backwards compatibility for single pdf object
+  const pdfInput =
+    typeof input.pdf === "object" && input.pdf !== null
+      ? (input.pdf as Record<string, unknown>)
+      : null;
+  if (
+    incomingFiles.length === 0 &&
+    pdfInput !== null &&
+    typeof pdfInput.base64 === "string" &&
+    pdfInput.base64.length > 0
+  ) {
+    const raw = pdfInput.base64 as string;
+    incomingFiles.push({
+      base64: raw.includes(",") ? raw.split(",")[1] : raw,
+      mimeType: "application/pdf",
+      name: typeof pdfInput.name === "string" ? pdfInput.name : undefined,
+    });
+  }
+
+  const hasFiles = incomingFiles.length > 0;
+
+  if (!hasNotes && !hasFiles) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "missing_feedback_and_files" });
+    return respond(
+      {
+        error: "Please provide coach's feedback notes, an uploaded PDF, or screenshots/images.",
+      },
+      requestId,
+      400,
+    );
+  }
+
+  if (hasNotes && typeof input.matchNotes === "string" && input.matchNotes.length > MAX_INPUT_LENGTH) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "notes_too_long" });
+    return respond(
+      {
+        error: `Coach's feedback notes must not exceed ${MAX_INPUT_LENGTH} characters.`,
+      },
+      requestId,
+      400,
+    );
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     console.error("[api/analyze] Gemini API key is missing", { requestId });
@@ -131,15 +214,36 @@ export async function POST(request: Request) {
     );
   }
 
-  const playerProfile = input.playerProfile.trim();
-  const matchNotes = input.matchNotes.trim();
-  const contents = `Player Profile:\n${playerProfile}\n\nMatch Notes:\n${matchNotes}`;
+  const playerProfile = (input.playerProfile as string).trim();
+  const matchNotes = hasNotes ? (input.matchNotes as string).trim() : "";
+
+  type ContentPart =
+    | { inlineData: { mimeType: string; data: string } }
+    | { text: string };
+
+  const contents: ContentPart[] = [];
+
+  for (const file of incomingFiles) {
+    contents.push({
+      inlineData: {
+        mimeType: file.mimeType,
+        data: file.base64,
+      },
+    });
+  }
+
+  const promptText = `Player Profile:\n${playerProfile}\n\nCoach's Notes & Observations:\n${
+    matchNotes || "(No additional written notes provided; evaluate the player using the attached PDF report and/or screenshot images)"
+  }`;
+  contents.push({ text: promptText });
 
   console.info("[api/analyze] Gemini request", {
     requestId,
     model: MODEL,
-    systemInstruction: SYSTEM_PROMPT,
-    contents,
+    fileCount: incomingFiles.length,
+    fileTypes: incomingFiles.map((f) => f.mimeType),
+    fileNames: incomingFiles.map((f) => f.name).filter(Boolean),
+    matchNotesLength: matchNotes.length,
     responseMimeType: "application/json",
   });
 
@@ -222,6 +326,8 @@ export async function POST(request: Request) {
       model: MODEL,
       durationMs: Date.now() - startedAt,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorCause: (error as { cause?: unknown })?.cause,
       providerStatus,
       providerCode: errorCode,
     });

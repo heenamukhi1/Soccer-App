@@ -124,8 +124,31 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .field-group textarea::placeholder { color: #71766d; opacity: 1; }
 .field-group textarea:hover { border-color: #4b5144; }
 .field-group textarea:focus { border-color: #a5cc60; outline: none; box-shadow: 0 0 0 3px #c7f36b15; }
-.field-group:nth-child(2) textarea { min-height: 151px; }
+.field-group:nth-child(2) textarea { min-height: 120px; }
 .field-hint { color: var(--muted); font-size: 8px; }
+
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdf-dropzone { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px dashed #3a4135; border-radius: 5px; background: #131612; cursor: pointer; transition: border-color 150ms, background 150ms; }
+.pdf-dropzone:hover, .pdf-dropzone.is-dragover { border-color: var(--lime); background: #182015; }
+.pdf-dropzone:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.pdf-dropzone.compact-dropzone { padding: 8px 12px; border-style: dotted; background: #111410; }
+.pdf-dropzone.compact-dropzone:hover { background: #171d13; }
+.pdf-dropzone-icon { width: 30px; height: 30px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 5px; color: var(--lime); background: #222a1b; }
+.pdf-dropzone.compact-dropzone .pdf-dropzone-icon { width: 24px; height: 24px; }
+.pdf-dropzone-text { display: flex; flex-direction: column; gap: 2px; }
+.pdf-dropzone-title { color: #e2e4dc; font-size: 11px; font-weight: 560; }
+.pdf-dropzone-desc { color: var(--text-secondary); font-size: 9px; }
+
+.attached-files-list { display: flex; flex-direction: column; gap: 7px; }
+.pdf-attached-card { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid #3d4a32; border-radius: 5px; background: #192015; }
+.pdf-attached-icon { width: 32px; height: 32px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 5px; color: var(--lime); background: #242f1b; }
+.pdf-attached-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; border: 1px solid #48563a; flex: 0 0 auto; }
+.pdf-attached-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.pdf-attached-name { color: #e2e4dc; font-size: 11px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdf-attached-meta { color: var(--lime); font-family: var(--font-mono); font-size: 8px; }
+.pdf-remove-btn { width: 28px; height: 28px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid #4a322f; border-radius: 4px; color: #f09b89; background: #241a18; cursor: pointer; transition: border-color 150ms, background 150ms; }
+.pdf-remove-btn:hover, .pdf-remove-btn:focus-visible { border-color: #895d55; background: #32211e; }
+.file-error { margin: -2px 0 0; color: var(--coral); font-size: 10px; }
 .form-bottom { display: flex; flex-direction: column; gap: 16px; margin-top: 1px; }
 .privacy-note { display: inline-flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: 8px; }
 .privacy-note svg { color: #88927b; }
