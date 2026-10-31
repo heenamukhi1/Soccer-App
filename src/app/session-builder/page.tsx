@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { createClient } from "@/lib/supabase/server";
 import SessionBuilder from "./SessionBuilder";
 
 async function ProtectedSessionBuilder() {
-  const session = await auth();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!user) {
     redirect("/");
   }
 

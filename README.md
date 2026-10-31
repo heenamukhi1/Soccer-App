@@ -20,25 +20,24 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Google sign-in
+## Google sign-in with Supabase
 
 The home page introduces NextLevel. Signing in with Google opens the protected session
-builder at `/session-builder`.
+builder at `/session-builder` through `/auth/callback`.
 
-1. In Google Cloud Console, create an OAuth 2.0 Client ID for a **Web application**.
-2. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
-3. If `.env.local` does not exist yet, copy `.env.example` to it. Otherwise, add
-   `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` to the existing file without replacing
-   any settings already there.
-4. Set `AUTH_SECRET` to a new random secret. You can generate one with
-   `openssl rand -base64 32`.
-5. Keep `GOOGLE_API_KEY` set in `.env.local` if you want to use Gemini analysis,
+1. Create a Supabase project and copy its project URL and anonymous key.
+2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to `.env.local`.
+3. In Supabase Auth providers, enable Google and add the Google OAuth client ID and secret.
+4. In Google Cloud Console, add Supabase's callback URL as an authorized redirect URI:
+   `https://sqpbzxetjjnrczibivrh.supabase.co/auth/v1/callback`
+5. In Supabase, add `http://localhost:3000/auth/callback` to the allowed redirect URLs.
+6. Keep `GOOGLE_API_KEY` set in `.env.local` if you want to use Gemini analysis,
    then restart the development server.
 
 `GOOGLE_API_KEY` is only for Gemini analysis; it is not a Google sign-in credential.
 
 Never commit `.env.local` or share its secrets. The session builder and its analysis
-endpoint both require a signed-in Google account.
+endpoint both require a signed-in Supabase account.
 
 Edit the landing page in `src/app/page.tsx` or the session builder in
 `src/app/session-builder/SessionBuilder.tsx`. The page auto-updates as you edit.
