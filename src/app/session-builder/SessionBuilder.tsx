@@ -34,6 +34,13 @@ type AnalysisResult = {
   weaknesses: AnalysisInsight[];
   drills: string[];
 };
+export type SavedPlayerProfile = {
+  name: string;
+  position: string | null;
+  positions: string[] | null;
+  preferred_foot: string;
+  age: number;
+};
 
 const SAVED_DRILLS_KEY = "nextlevel-saved-drills";
 const SAVED_DRILLS_EVENT = "nextlevel-saved-drills-change";
@@ -146,7 +153,14 @@ const initialDrills: Drill[] = [
   },
 ];
 
-export default function SessionBuilder() {
+export default function SessionBuilder({ profile }: { profile: SavedPlayerProfile }) {
+  const selectedPositions = profile.positions?.length
+    ? profile.positions
+    : typeof profile.position === "string" && profile.position.trim()
+      ? profile.position.split(/\s*,\s*/).filter(Boolean)
+      : [];
+  const positionText = selectedPositions.join(" · ");
+  const profileText = `${profile.name}\nAge: ${profile.age}\nPositions: ${positionText || "Not set"}\nPreferred foot: ${profile.preferred_foot}`;
   const [activeView, setActiveView] = useState<"session" | "library">("session");
   const savedDrillsJson = useSyncExternalStore(
     subscribeToSavedDrills,
@@ -169,15 +183,14 @@ export default function SessionBuilder() {
     return [];
   }, [savedDrillsJson]);
   const [storageError, setStorageError] = useState("");
-  const [profile, setProfile] = useState("");
   const [feedback, setFeedback] = useState("");
   const [score, setScore] = useState(8.4);
   const [confidence, setConfidence] = useState(91);
-  const [playerMeta, setPlayerMeta] = useState("CM / U17");
+  const [playerMeta, setPlayerMeta] = useState(positionText ? `${positionText} / U${profile.age}` : `U${profile.age}`);
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
-  const [playerName, setPlayerName] = useState("Jordan Mitchell");
+  const [playerName, setPlayerName] = useState(profile.name);
   const [strengths, setStrengths] = useState(initialStrengths);
   const [weaknesses, setWeaknesses] = useState(initialWeaknesses);
   const [drills, setDrills] = useState(initialDrills);
@@ -221,7 +234,7 @@ export default function SessionBuilder() {
 
     console.info("[analysis] Request started", {
       requestId,
-      profileLength: profile.length,
+      profileLength: profileText.length,
       matchNotesLength: feedback.length,
     });
 
@@ -236,7 +249,7 @@ export default function SessionBuilder() {
           "Content-Type": "application/json",
           "X-Request-ID": requestId,
         },
-        body: JSON.stringify({ playerProfile: profile, matchNotes: feedback }),
+        body: JSON.stringify({ playerProfile: profileText, matchNotes: feedback }),
       });
       const elapsedMs = Math.round(performance.now() - startedAt);
       const serverRequestId = response.headers.get("X-Request-ID") || requestId;
@@ -280,14 +293,8 @@ export default function SessionBuilder() {
         durationMs: elapsedMs,
       });
 
-      const [name, age, position] = profile.trim().split("\n")[0].split(",");
-
-      setPlayerName(name?.trim() || "Your player");
-      setPlayerMeta(
-        [position?.trim(), age?.trim() ? `U${age.trim()}` : undefined]
-          .filter(Boolean)
-          .join(" / ") || "PLAYER",
-      );
+      setPlayerName(profile.name);
+      setPlayerMeta(positionText ? `${positionText} / U${profile.age}` : `U${profile.age}`);
       setScore(data.rating);
       setStrengths(
         data.strengths.map((strength) => ({
@@ -423,17 +430,20 @@ export default function SessionBuilder() {
           </div>
 
           <form className="analysis-form" onSubmit={handleAnalyze}>
-            <div className="field-group">
-              <label htmlFor="player-profile">Player Profile <span>(Name, Age, Position)</span></label>
+            <div className="field-group player-profile-summary-group">
+              <div className="profile-summary-heading">
+                <label htmlFor="player-profile-edit">Player Profile</label>
+                <Link className="profile-summary-edit" href="/profile" aria-label="Edit player profile">Edit</Link>
+              </div>
               <textarea
-                id="player-profile"
-                name="player-profile"
-                placeholder={"e.g. Jordan Mitchell, 17, Central Midfielder\nClub: Eastside FC · Preferred foot: right"}
-                value={profile}
-                onChange={(event) => setProfile(event.target.value)}
+                id="player-profile-edit"
+                className="profile-summary-input"
+                value={profileText}
+                readOnly
+                rows={4}
                 required
+                aria-label="Player profile text"
               />
-              <span className="field-hint">INCLUDE POSITION, PREFERRED FOOT &amp; LEVEL</span>
             </div>
 
             <div className="field-group">
@@ -629,7 +639,7 @@ export default function SessionBuilder() {
             !isAnalyzing && (
               <div className="dashboard-empty">
                 <Sparkles size={20} aria-hidden="true" />
-                <p>Enter the player profile and match notes, then select <strong>Analyze performance</strong> to see the results.</p>
+                <p>Enter your coach&apos;s match notes, then select <strong>Analyze performance</strong> to see the results.</p>
               </div>
             )
           )}

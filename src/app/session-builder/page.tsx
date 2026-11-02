@@ -15,7 +15,7 @@ async function ProtectedSessionBuilder() {
 
   const { data: profile } = await supabase
     .from("player_profiles")
-    .select("user_id")
+    .select("name, position, positions, preferred_foot, age")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -23,7 +23,7 @@ async function ProtectedSessionBuilder() {
     redirect("/profile");
   }
 
-  return <SessionBuilder />;
+  return <SessionBuilder profile={profile} />;
 }
 
 export default function SessionBuilderPage() {

@@ -126,6 +126,13 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .field-group textarea:focus { border-color: #a5cc60; outline: none; box-shadow: 0 0 0 3px #c7f36b15; }
 .field-group:nth-child(2) textarea { min-height: 151px; }
 .field-hint { color: var(--muted); font-size: 8px; }
+.profile-summary-heading { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.profile-summary-heading label { margin: 0; }
+.profile-summary-edit { min-height: 28px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--surface-raised); cursor: pointer; font-size: 9px; }
+.profile-summary-edit:hover { border-color: #536240; color: var(--lime); }
+.profile-summary-input { width: 100%; min-height: 128px !important; resize: none; padding: 14px !important; border: 1px solid #353a31 !important; border-radius: 5px; color: var(--text) !important; background: var(--surface-inset) !important; font-size: 12px !important; line-height: 1.75 !important; white-space: pre-wrap; }
+.profile-summary-input[readonly] { color: #cfd3c6 !important; cursor: default; }
+.profile-summary-input:not([readonly]) { border-color: #536240 !important; resize: vertical; }
 .form-bottom { display: flex; flex-direction: column; gap: 16px; margin-top: 1px; }
 .privacy-note { display: inline-flex; align-items: center; gap: 7px; margin: 0; color: var(--muted); font-size: 8px; }
 .privacy-note svg { color: #88927b; }
