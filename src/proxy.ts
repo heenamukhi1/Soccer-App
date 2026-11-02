@@ -26,7 +26,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/session-builder")) {
+  if (!user && (request.nextUrl.pathname.startsWith("/session-builder") || request.nextUrl.pathname.startsWith("/profile"))) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
@@ -34,5 +34,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/session-builder/:path*", "/api/analyze"],
+  matcher: ["/session-builder/:path*", "/profile/:path*", "/api/analyze"],
 };

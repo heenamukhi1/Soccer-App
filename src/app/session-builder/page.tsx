@@ -13,6 +13,16 @@ async function ProtectedSessionBuilder() {
     redirect("/");
   }
 
+  const { data: profile } = await supabase
+    .from("player_profiles")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!profile) {
+    redirect("/profile");
+  }
+
   return <SessionBuilder />;
 }
 

@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import SignOutButton from "../sign-out-button";
 
@@ -363,6 +364,7 @@ export default function SessionBuilder() {
         </a>
         <div className="topbar-right">
           <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2025 / 26</span>
+          <Link className="edit-profile-button" href="/profile">Edit profile</Link>
           <SignOutButton />
         </div>
       </header>
