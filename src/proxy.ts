@@ -26,13 +26,26 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user && (request.nextUrl.pathname.startsWith("/session-builder") || request.nextUrl.pathname.startsWith("/profile"))) {
+  const protectedRoutes = ["/session-builder", "/training-schedule", "/profile", "/welcome-back"];
+  if (!user && protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))) {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (user && request.nextUrl.pathname === "/") {
+    const { data: profile } = await supabase
+      .from("player_profiles")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    return NextResponse.redirect(
+      new URL(profile ? "/welcome-back" : "/profile", request.url),
+    );
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/session-builder/:path*", "/profile/:path*", "/api/analyze"],
+  matcher: ["/session-builder/:path*", "/training-schedule/:path*", "/profile/:path*", "/welcome-back/:path*", "/api/analyze"],
 };

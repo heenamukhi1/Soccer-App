@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  CalendarDays,
   ChevronDown,
   Clock3,
   Dumbbell,
@@ -20,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import SignOutButton from "../sign-out-button";
 
@@ -33,6 +35,14 @@ type AnalysisResult = {
   strengths: AnalysisInsight[];
   weaknesses: AnalysisInsight[];
   drills: string[];
+  schedule: AnalysisScheduleItem[];
+};
+type AnalysisScheduleItem = {
+  day: string;
+  startTime: string;
+  name: string;
+  durationMinutes: number;
+  type: "drill" | "break";
 };
 export type SavedPlayerProfile = {
   name: string;
@@ -44,6 +54,9 @@ export type SavedPlayerProfile = {
 
 const SAVED_DRILLS_KEY = "nextlevel-saved-drills";
 const SAVED_DRILLS_EVENT = "nextlevel-saved-drills-change";
+const TRAINING_AVAILABILITY_KEY = "nextlevel-training-availability";
+const TRAINING_EQUIPMENT_KEY = "nextlevel-training-equipment";
+const TRAINING_SCHEDULE_KEY = "nextlevel-training-schedule";
 
 function subscribeToSavedDrills(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
@@ -91,6 +104,25 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
     Array.isArray(items) &&
     items.length === 3 &&
     items.every((item) => typeof item === "string" && item.trim().length > 0);
+  const hasValidSchedule = (items: unknown) =>
+    Array.isArray(items) &&
+    items.length <= 60 &&
+    items.every((item) =>
+    typeof item === "object" &&
+    item !== null &&
+    "day" in item &&
+    typeof item.day === "string" &&
+    "startTime" in item &&
+    typeof item.startTime === "string" &&
+    "name" in item &&
+    typeof item.name === "string" &&
+    "durationMinutes" in item &&
+    typeof item.durationMinutes === "number" &&
+    Number.isFinite(item.durationMinutes) &&
+    item.durationMinutes >= 1 &&
+    "type" in item &&
+    (item.type === "drill" || item.type === "break"),
+    );
 
   return (
     typeof result.rating === "number" &&
@@ -99,7 +131,8 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
     result.rating <= 10 &&
     hasThreeInsights(result.strengths) &&
     hasThreeInsights(result.weaknesses) &&
-    hasThreeStrings(result.drills)
+    hasThreeStrings(result.drills) &&
+    hasValidSchedule(result.schedule)
   );
 }
 
@@ -154,6 +187,7 @@ const initialDrills: Drill[] = [
 ];
 
 export default function SessionBuilder({ profile }: { profile: SavedPlayerProfile }) {
+  const searchParams = useSearchParams();
   const selectedPositions = profile.positions?.length
     ? profile.positions
     : typeof profile.position === "string" && profile.position.trim()
@@ -161,7 +195,9 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
       : [];
   const positionText = selectedPositions.join(" · ");
   const profileText = `${profile.name}\nAge: ${profile.age}\nPositions: ${positionText || "Not set"}\nPreferred foot: ${profile.preferred_foot}`;
-  const [activeView, setActiveView] = useState<"session" | "library">("session");
+  const [activeView, setActiveView] = useState<"session" | "library">(
+    searchParams.get("view") === "library" ? "library" : "session",
+  );
   const savedDrillsJson = useSyncExternalStore(
     subscribeToSavedDrills,
     getSavedDrillsSnapshot,
@@ -184,6 +220,7 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
   }, [savedDrillsJson]);
   const [storageError, setStorageError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [playerAssessment, setPlayerAssessment] = useState("");
   const [score, setScore] = useState(8.4);
   const [confidence, setConfidence] = useState(91);
   const [playerMeta, setPlayerMeta] = useState(positionText ? `${positionText} / U${profile.age}` : `U${profile.age}`);
@@ -236,6 +273,7 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
       requestId,
       profileLength: profileText.length,
       matchNotesLength: feedback.length,
+      playerAssessmentLength: playerAssessment.length,
     });
 
     if (window.matchMedia("(max-width: 950px)").matches) {
@@ -243,13 +281,28 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
     }
 
     try {
+      let trainingAvailability: unknown = [];
+      let trainingEquipment: unknown = [];
+      try {
+        trainingAvailability = JSON.parse(window.localStorage.getItem(TRAINING_AVAILABILITY_KEY) ?? "[]");
+        trainingEquipment = JSON.parse(window.localStorage.getItem(TRAINING_EQUIPMENT_KEY) ?? "[]");
+      } catch {
+        trainingAvailability = [];
+        trainingEquipment = [];
+      }
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Request-ID": requestId,
         },
-        body: JSON.stringify({ playerProfile: profileText, matchNotes: feedback }),
+        body: JSON.stringify({
+          playerProfile: profileText,
+          matchNotes: feedback,
+          playerAssessment,
+          trainingAvailability,
+          trainingEquipment,
+        }),
       });
       const elapsedMs = Math.round(performance.now() - startedAt);
       const serverRequestId = response.headers.get("X-Request-ID") || requestId;
@@ -323,6 +376,18 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         })),
         ...savedDrills,
       ]);
+      try {
+        window.localStorage.setItem(
+          TRAINING_SCHEDULE_KEY,
+          JSON.stringify(data.schedule),
+        );
+        window.dispatchEvent(new Event("nextlevel:schedule-updated"));
+      } catch (error) {
+        console.error(
+          "[session-builder] Could not save training schedule",
+          error,
+        );
+      }
       setConfidence(0);
       setHasAnalyzed(true);
     } catch (error) {
@@ -372,6 +437,19 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         <div className="topbar-right">
           <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2025 / 26</span>
           <Link className="edit-profile-button" href="/profile">Edit profile</Link>
+          <button
+            className="side-nav-button"
+            type="button"
+            onClick={() => setActiveView("library")}
+          >
+            <Library size={14} aria-hidden="true" />
+            Drill Library
+            <span className="side-nav-count">{savedDrills.length}</span>
+          </button>
+          <Link className="side-nav-button" href="/training-schedule">
+            <CalendarDays size={14} aria-hidden="true" />
+            Training Schedule
+          </Link>
           <SignOutButton />
         </div>
       </header>
@@ -382,33 +460,6 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
           <h1>Make every session <span>count.</span></h1>
           <p className="page-description">Turn the coach&apos;s eye into a clearer plan for the pitch.</p>
         </div>
-        <nav className="view-tabs" aria-label="Main views" role="tablist">
-          <button
-            id="session-tab"
-            className={`view-tab${activeView === "session" ? " is-active" : ""}`}
-            type="button"
-            role="tab"
-            aria-selected={activeView === "session"}
-            aria-controls="session-view"
-            onClick={() => setActiveView("session")}
-          >
-            <Dumbbell size={14} aria-hidden="true" />
-            Session Builder
-          </button>
-          <button
-            id="library-tab"
-            className={`view-tab${activeView === "library" ? " is-active" : ""}`}
-            type="button"
-            role="tab"
-            aria-selected={activeView === "library"}
-            aria-controls="library-view"
-            onClick={() => setActiveView("library")}
-          >
-            <Library size={14} aria-hidden="true" />
-            Drill Library
-            <span className="view-tab-count">{savedDrills.length}</span>
-          </button>
-        </nav>
       </section>
 
       {activeView === "session" ? (
@@ -457,6 +508,21 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
                 required
               />
               <span className="field-hint">MATCH OBSERVATIONS, HABITS &amp; AREAS TO WORK ON</span>
+            </div>
+
+            <div className="field-group player-assessment-group">
+              <label htmlFor="player-assessment">
+                Your assessment <span>(optional)</span>
+              </label>
+              <textarea
+                id="player-assessment"
+                name="player-assessment"
+                placeholder="e.g. I feel confident receiving with my right foot, but I struggle to stay composed when defenders close me down."
+                value={playerAssessment}
+                onChange={(event) => setPlayerAssessment(event.target.value)}
+                maxLength={10_000}
+              />
+              <span className="field-hint">YOUR PERSPECTIVE ON STRENGTHS, CHALLENGES &amp; MATCH EXPERIENCES</span>
             </div>
 
             <div className="form-bottom">
@@ -660,7 +726,7 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         </section>
       </div>
       ) : (
-        <section className="library-panel" id="library-view" role="tabpanel" aria-labelledby="library-tab">
+        <section className="library-panel" id="library-view">
           <div className="section-topline">
             <div className="section-index"><Library size={14} aria-hidden="true" /></div>
             <span className="section-kicker">YOUR SAVED TRAINING</span>

@@ -17,9 +17,11 @@ function GoogleMark() {
 export default function SignInButton({ configured }: { configured: boolean }) {
   async function handleSignIn() {
     const supabase = createClient();
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    const redirectUrl = configuredAppUrl || window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${redirectUrl.replace(/\/$/, "")}/auth/callback` },
     });
   }
 

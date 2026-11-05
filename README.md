@@ -30,7 +30,10 @@ builder at `/session-builder` through `/auth/callback`.
 3. In Supabase Auth providers, enable Google and add the Google OAuth client ID and secret.
 4. In Google Cloud Console, add Supabase's callback URL as an authorized redirect URI:
    `https://sqpbzxetjjnrczibivrh.supabase.co/auth/v1/callback`
-5. In Supabase, add `http://localhost:3000/auth/callback` to the allowed redirect URLs.
+5. In Supabase, add both `http://localhost:3000/auth/callback` and
+   `http://localhost:3001/auth/callback` to the allowed redirect URLs.
+   When running locally, also set `NEXT_PUBLIC_APP_URL=http://localhost:3001`
+   so Google sign-in always returns to the local app.
 6. Keep `GOOGLE_API_KEY` set in `.env.local` if you want to use Gemini analysis,
    then restart the development server.
 

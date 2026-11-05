@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        return NextResponse.redirect(`${origin}${profile ? "/session-builder" : "/profile"}`);
+        return NextResponse.redirect(`${origin}${profile ? "/welcome-back" : "/profile"}`);
       }
     }
   }
