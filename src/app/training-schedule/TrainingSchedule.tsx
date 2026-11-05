@@ -192,7 +192,9 @@ export default function TrainingSchedule() {
         </Link>
         <div className="topbar-right">
           <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2025 / 26</span>
-          <Link className="edit-profile-button" href="/session-builder">Session Builder</Link>
+          <Link className="edit-profile-button" href="/session-builder?view=session">
+            Session Builder
+          </Link>
           <Link className="side-nav-button" href="/session-builder?view=library">
             <Package size={14} aria-hidden="true" />
             Drill Library

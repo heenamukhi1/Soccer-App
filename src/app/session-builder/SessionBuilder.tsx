@@ -21,8 +21,8 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import SignOutButton from "../sign-out-button";
 
 type Strength = { name: string; detail: string };
@@ -198,6 +198,10 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
   const [activeView, setActiveView] = useState<"session" | "library">(
     searchParams.get("view") === "library" ? "library" : "session",
   );
+  useEffect(() => {
+    const nextView = searchParams.get("view") === "library" ? "library" : "session";
+    queueMicrotask(() => setActiveView(nextView));
+  }, [searchParams]);
   const savedDrillsJson = useSyncExternalStore(
     subscribeToSavedDrills,
     getSavedDrillsSnapshot,
