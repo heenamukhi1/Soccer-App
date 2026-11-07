@@ -93,7 +93,13 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .library-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 .saved-drill-list { display: grid; gap: 14px; }
 .saved-drill-group { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: #181b17; }
-.saved-drill-date { margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); color: #c7cbbd; background: #1c201a; font-family: var(--font-mono); font-size: 9px; font-weight: 500; }
+.saved-drill-date { min-height: 42px; margin: 0; display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: #c7cbbd; background: #1c201a; font-family: var(--font-mono); font-size: 9px; font-weight: 500; list-style: none; cursor: pointer; }
+.saved-drill-date::-webkit-details-marker { display: none; }
+.saved-drill-date::marker { content: ""; }
+.saved-drill-date span { margin-left: auto; color: #858b7d; font-size: 8px; }
+.saved-drill-chevron { flex: 0 0 auto; transition: transform 180ms ease; }
+.saved-drill-group[open] .saved-drill-date { border-bottom: 1px solid var(--border); }
+.saved-drill-group[open] .saved-drill-chevron { transform: rotate(180deg); }
 .saved-drill-card { min-width: 0; display: flex; align-items: center; gap: 13px; padding: 14px; }
 .saved-drill-card + .saved-drill-card { margin-top: 4px; }
 .saved-drill-icon { width: 36px; height: 36px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 5px; color: var(--blue); background: #242e40; }

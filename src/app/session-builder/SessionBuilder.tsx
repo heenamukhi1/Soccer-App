@@ -961,10 +961,12 @@ export default function SessionBuilder({
           {savedDrills.length > 0 ? (
             <div className="saved-drill-list">
               {savedDrillGroups.map((group) => (
-                <section className="saved-drill-group" key={group.dateKey} aria-label={`Drills saved ${group.dateKey}`}>
-                  <h3 className="saved-drill-date">
+                <details className="saved-drill-group" key={group.dateKey}>
+                  <summary className="saved-drill-date">
                     <time dateTime={group.savedAt}>{group.dateKey}</time>
-                  </h3>
+                    <span>{group.drills.length} {group.drills.length === 1 ? "drill" : "drills"}</span>
+                    <ChevronDown className="saved-drill-chevron" size={14} aria-hidden="true" />
+                  </summary>
                   {group.drills.map((drill) => (
                     <article className="saved-drill-card" key={drill.id}>
                       <div className="saved-drill-icon"><Target size={17} aria-hidden="true" /></div>
@@ -991,7 +993,7 @@ export default function SessionBuilder({
                       </button>
                     </article>
                   ))}
-                </section>
+                </details>
               ))}
             </div>
           ) : (
