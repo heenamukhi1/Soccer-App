@@ -534,6 +534,40 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .benefit-card p { max-width: 300px; margin: 0; color: var(--text-secondary); font-size: 10px; line-height: 1.7; }
 .landing-bottom { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: auto; padding: 23px 0 27px; border-top: 1px solid var(--border); }
 .landing-bottom h2 { font-size: clamp(18px, 2.5vw, 22px); }
+.feedback-button { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 18px; border: 1px solid var(--lime); border-radius: 5px; color: #161b11; background: var(--lime); cursor: pointer; font-size: 13px; font-weight: 650; transition: background 160ms, transform 160ms, box-shadow 160ms; }
+.feedback-button:hover { transform: translateY(-1px); background: #d5ff83; box-shadow: 0 6px 23px #c7f36320; }
+.feedback-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 24px; background: rgb(7 9 7 / 82%); backdrop-filter: blur(10px); }
+.feedback-modal { position: relative; width: 520px; max-width: 100%; box-sizing: border-box; padding: 26px 30px 30px; border: 1px solid #3a4035; border-radius: 12px; background: #171a16; box-shadow: 0 28px 90px rgb(0 0 0 / 55%); }
+.feedback-modal-heading { margin-bottom: 20px; padding-right: 42px; }
+.feedback-modal-heading h2 { margin: 8px 0 7px; font-size: 28px; line-height: 1.1; letter-spacing: -0.5px; }
+.feedback-modal-heading p { max-width: 390px; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+.feedback-close { position: absolute; top: 20px; right: 20px; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: #1d211b; cursor: pointer; }
+.feedback-close:hover { color: var(--text); border-color: #536240; }
+.feedback-form { display: grid; gap: 14px; }
+.feedback-form label { display: grid; gap: 8px; color: #dfe2d8; font-size: 12px; font-weight: 550; }
+.feedback-form label small { margin-left: 4px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.feedback-form input, .feedback-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #3a4035; border-radius: 7px; color: var(--text); background: #11140f; font-size: 13px; }
+.feedback-form input { min-height: 46px; padding: 0 13px; }
+.feedback-form textarea { min-height: 120px; resize: vertical; padding: 12px 13px; line-height: 1.65; }
+.feedback-form input::placeholder, .feedback-form textarea::placeholder { color: #777d70; opacity: 1; }
+.feedback-form input:focus-visible, .feedback-form textarea:focus-visible { border-color: var(--lime); outline: none; box-shadow: 0 0 0 3px rgb(199 243 107 / 10%); }
+.feedback-submit { width: 100%; min-height: 46px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--lime); border-radius: 7px; color: #161b11; background: var(--lime); cursor: pointer; font-size: 12px; font-weight: 650; }
+.feedback-submit:hover:not(:disabled) { background: #d5ff83; }
+.feedback-submit:disabled { border-color: #343a30; color: #7f8676; background: #242820; cursor: not-allowed; }
+.feedback-error { margin: 0; color: var(--coral); font-size: 10px; }
+.feedback-success { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.feedback-success-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #536240; border-radius: 50%; color: var(--lime); background: #22291b; }
+.feedback-success h3 { margin: 13px 0 5px; font-size: 17px; }
+.feedback-success p { margin: 0 0 18px; color: var(--text-secondary); font-size: 11px; }
+.feedback-success .feedback-submit { width: 120px; min-width: 120px; }
+@media (max-width: 600px) {
+  .feedback-backdrop { align-items: center; padding: 14px; }
+  .feedback-modal { width: 100%; padding: 24px 20px 20px; border-radius: 10px; }
+  .feedback-modal-heading { margin-bottom: 20px; }
+  .feedback-modal-heading h2 { font-size: 24px; }
+  .feedback-close { top: 14px; right: 14px; }
+  .feedback-form textarea { min-height: 130px; }
+}
 .auth-loading { min-height: 100vh; display: grid; place-items: center; color: var(--text-secondary); }
 .sign-out-control { display: flex; flex-direction: column; align-items: end; gap: 4px; }
 .sign-out-button { padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); background: var(--surface-raised); cursor: pointer; font-size: 10px; }

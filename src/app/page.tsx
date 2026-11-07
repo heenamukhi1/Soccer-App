@@ -1,5 +1,6 @@
 import { Activity, ArrowRight, Check, ShieldCheck, Sparkles, Target, TrendingUp } from "lucide-react";
 import SignInButton from "./sign-in-button";
+import FeedbackButton from "./feedback-button";
 
 const benefits = [
   {
@@ -105,7 +106,7 @@ function LandingPage() {
           <span className="section-kicker">YOUR NEXT SESSION STARTS HERE</span>
           <h2>Ready to find your next edge?</h2>
         </div>
-        <SignInButton configured={googleConfigured} />
+        <FeedbackButton />
       </section>
 
       <footer className="page-footer">
