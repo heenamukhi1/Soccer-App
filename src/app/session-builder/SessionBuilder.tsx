@@ -57,6 +57,84 @@ const SAVED_DRILLS_EVENT = "nextlevel-saved-drills-change";
 const TRAINING_AVAILABILITY_KEY = "nextlevel-training-availability";
 const TRAINING_EQUIPMENT_KEY = "nextlevel-training-equipment";
 const TRAINING_SCHEDULE_KEY = "nextlevel-training-schedule";
+const PROGRESS_HISTORY_KEY = "nextlevel-progress-history";
+const TRAINING_WEEK_KEY = "nextlevel-training-week";
+const TRAINING_COMPLETED_KEY = "nextlevel-training-completed";
+const TRAINING_COMPLETED_HISTORY_KEY = "nextlevel-training-completed-history";
+
+function getCurrentTrainingWeekStart() {
+  const now = new Date();
+  const start = new Date(now);
+  const distanceFromMonday = start.getDay() === 0 ? 6 : start.getDay() - 1;
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - distanceFromMonday);
+  return start.toISOString().slice(0, 10);
+}
+
+function clearExpiredTrainingWeek() {
+  const savedWeek = window.localStorage.getItem(TRAINING_WEEK_KEY);
+  const currentWeek = getCurrentTrainingWeekStart();
+  if (savedWeek === currentWeek) return;
+  if (!savedWeek) {
+    window.localStorage.setItem(TRAINING_WEEK_KEY, currentWeek);
+    return;
+  }
+  window.localStorage.removeItem(TRAINING_AVAILABILITY_KEY);
+  window.localStorage.removeItem(TRAINING_EQUIPMENT_KEY);
+  window.localStorage.removeItem(TRAINING_SCHEDULE_KEY);
+  window.localStorage.removeItem(TRAINING_COMPLETED_KEY);
+  window.localStorage.removeItem(TRAINING_COMPLETED_HISTORY_KEY);
+  window.localStorage.setItem(TRAINING_WEEK_KEY, currentWeek);
+}
+
+function normalizeScheduleText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function mergeWeeklySchedules(
+  previous: unknown,
+  incoming: AnalysisScheduleItem[],
+) {
+  const existing = Array.isArray(previous)
+    ? previous.filter((item): item is AnalysisScheduleItem =>
+        typeof item === "object" &&
+        item !== null &&
+        "day" in item &&
+        typeof item.day === "string" &&
+        "startTime" in item &&
+        typeof item.startTime === "string" &&
+        "name" in item &&
+        typeof item.name === "string" &&
+        "durationMinutes" in item &&
+        typeof item.durationMinutes === "number" &&
+        "type" in item &&
+        (item.type === "drill" || item.type === "break"),
+      )
+    : [];
+
+  const merged = [...existing];
+  const seen = new Set(
+    existing.map((item) =>
+      `${item.type}-${item.day.toLowerCase()}-${item.startTime}-${normalizeScheduleText(item.name)}`,
+    ),
+  );
+
+  incoming.forEach((item) => {
+    const key = `${item.type}-${item.day.toLowerCase()}-${item.startTime}-${normalizeScheduleText(item.name)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  });
+
+  return merged.sort((a, b) => {
+    const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    const dayDifference =
+      dayOrder.indexOf(a.day.toLowerCase()) - dayOrder.indexOf(b.day.toLowerCase());
+    if (dayDifference !== 0) return dayDifference;
+    return a.startTime.localeCompare(b.startTime);
+  });
+}
 
 function subscribeToSavedDrills(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
@@ -288,6 +366,7 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
       let trainingAvailability: unknown = [];
       let trainingEquipment: unknown = [];
       try {
+        clearExpiredTrainingWeek();
         trainingAvailability = JSON.parse(window.localStorage.getItem(TRAINING_AVAILABILITY_KEY) ?? "[]");
         trainingEquipment = JSON.parse(window.localStorage.getItem(TRAINING_EQUIPMENT_KEY) ?? "[]");
       } catch {
@@ -371,6 +450,25 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         })),
       );
       const savedAt = new Date().toISOString();
+      try {
+        const previousRaw = window.localStorage.getItem(PROGRESS_HISTORY_KEY);
+        const previous: unknown = previousRaw ? JSON.parse(previousRaw) : [];
+        const progressEntry = {
+          id: crypto.randomUUID(),
+          date: savedAt,
+          rating: data.rating,
+          strengths: data.strengths.map((item) => item.name),
+          weaknesses: data.weaknesses.map((item) => item.name),
+        };
+        const nextHistory = [
+          ...(Array.isArray(previous) ? previous : []),
+          progressEntry,
+        ].slice(-10);
+        window.localStorage.setItem(PROGRESS_HISTORY_KEY, JSON.stringify(nextHistory));
+        window.dispatchEvent(new Event("nextlevel:progress-updated"));
+      } catch (error) {
+        console.error("[session-builder] Could not save progress history", error);
+      }
       persistSavedDrills([
         ...data.drills.map((drill) => ({
           id: crypto.randomUUID(),
@@ -381,10 +479,19 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         ...savedDrills,
       ]);
       try {
+        clearExpiredTrainingWeek();
+        const savedScheduleRaw = window.localStorage.getItem(TRAINING_SCHEDULE_KEY);
+        let savedSchedule: unknown = [];
+        try {
+          savedSchedule = savedScheduleRaw ? JSON.parse(savedScheduleRaw) : [];
+        } catch (error) {
+          console.error("[session-builder] Could not parse existing training schedule", error);
+        }
         window.localStorage.setItem(
           TRAINING_SCHEDULE_KEY,
-          JSON.stringify(data.schedule),
+          JSON.stringify(mergeWeeklySchedules(savedSchedule, data.schedule)),
         );
+        window.localStorage.setItem(TRAINING_WEEK_KEY, getCurrentTrainingWeekStart());
         window.dispatchEvent(new Event("nextlevel:schedule-updated"));
       } catch (error) {
         console.error(
@@ -453,6 +560,10 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
           <Link className="side-nav-button" href="/training-schedule">
             <CalendarDays size={14} aria-hidden="true" />
             Training Schedule
+          </Link>
+          <Link className="side-nav-button" href="/progress">
+            <TrendingUp size={14} aria-hidden="true" />
+            Progress
           </Link>
           <SignOutButton />
         </div>

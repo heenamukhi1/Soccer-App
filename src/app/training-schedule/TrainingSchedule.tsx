@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, CalendarDays, Clock3, Package, Plus, Trash2 } from "lucide-react";
+import { Activity, CalendarDays, Clock3, Package, Plus, Trash2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import SignOutButton from "../sign-out-button";
@@ -36,15 +36,65 @@ const AVAILABILITY_KEY = "nextlevel-training-availability";
 const EQUIPMENT_KEY = "nextlevel-training-equipment";
 const SCHEDULE_KEY = "nextlevel-training-schedule";
 const COMPLETED_KEY = "nextlevel-training-completed";
+const COMPLETED_HISTORY_KEY = "nextlevel-training-completed-history";
+const WEEK_KEY = "nextlevel-training-week";
+
+function normalizeScheduleText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getCurrentWeekStart() {
+  const now = new Date();
+  const start = new Date(now);
+  const day = start.getDay();
+  const distanceFromMonday = day === 0 ? 6 : day - 1;
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - distanceFromMonday);
+  return start.toISOString().slice(0, 10);
+}
+
+function clearExpiredWeeklyData() {
+  const currentWeek = getCurrentWeekStart();
+  const savedWeek = localStorage.getItem(WEEK_KEY);
+  if (savedWeek === currentWeek) return false;
+  if (!savedWeek) {
+    localStorage.setItem(WEEK_KEY, currentWeek);
+    return false;
+  }
+
+  localStorage.removeItem(AVAILABILITY_KEY);
+  localStorage.removeItem(EQUIPMENT_KEY);
+  localStorage.removeItem(SCHEDULE_KEY);
+  localStorage.removeItem(COMPLETED_KEY);
+  localStorage.removeItem(COMPLETED_HISTORY_KEY);
+  localStorage.setItem(WEEK_KEY, currentWeek);
+  return true;
+}
+
+function getStableScheduleItemId(item: ScheduleItem) {
+  return `${item.day}-${item.startTime}-${item.name}`;
+}
+
+function normalizeCompletedIds(completedIds: string[], schedule: ScheduleItem[]) {
+  return Array.from(new Set(completedIds.map((completedId) => {
+    const normalizedId = normalizeScheduleText(completedId);
+    const matchingItem = schedule.find((item) =>
+      item.type === "drill" &&
+      normalizedId.includes(normalizeScheduleText(item.name)),
+    );
+    return matchingItem ? getStableScheduleItemId(matchingItem) : completedId;
+  })));
+}
 
 export default function TrainingSchedule() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [equipment, setEquipment] = useState<string[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [completed, setCompleted] = useState<string[]>([]);
+  const [mounted, setMounted] = useState(false);
 
-  function getScheduleItemId(item: ScheduleItem, index = 0) {
-    return `${item.day}-${item.startTime}-${item.name}-${index}`;
+  function getScheduleItemId(item: ScheduleItem) {
+    return getStableScheduleItemId(item);
   }
 
   function toggleCompleted(itemId: string) {
@@ -54,6 +104,32 @@ export default function TrainingSchedule() {
         : [...current, itemId];
       try {
         localStorage.setItem(COMPLETED_KEY, JSON.stringify(next));
+        if (!current.includes(itemId)) {
+          const previousHistory: unknown = JSON.parse(
+            localStorage.getItem(COMPLETED_HISTORY_KEY) ?? "[]",
+          );
+          const history = Array.isArray(previousHistory)
+            ? previousHistory.filter((value): value is string => typeof value === "string")
+            : [];
+          if (!history.includes(itemId)) {
+            localStorage.setItem(
+              COMPLETED_HISTORY_KEY,
+              JSON.stringify([...history, itemId]),
+            );
+          }
+        }
+        window.dispatchEvent(new Event("nextlevel:training-completed"));
+        const drillIds = schedule.filter((item) => item.type === "drill").map(getStableScheduleItemId);
+        const allDrillsCompleted =
+          drillIds.length > 0 && drillIds.every((drillId) => next.includes(drillId));
+        if (allDrillsCompleted) {
+          setSchedule([]);
+          setCompleted([]);
+          localStorage.setItem(SCHEDULE_KEY, "[]");
+          localStorage.removeItem(COMPLETED_KEY);
+          window.dispatchEvent(new Event("nextlevel:schedule-updated"));
+          window.dispatchEvent(new Event("nextlevel:training-completed"));
+        }
       } catch (error) {
         console.error("[training-schedule] Could not save completed drills", error);
       }
@@ -62,6 +138,14 @@ export default function TrainingSchedule() {
   }
 
   useEffect(() => {
+    queueMicrotask(() => setMounted(true));
+    const expired = clearExpiredWeeklyData();
+    if (expired) {
+      queueMicrotask(() => {
+        setAvailability([]);
+        setEquipment([]);
+      });
+    }
     try {
       const savedAvailability: unknown = JSON.parse(localStorage.getItem(AVAILABILITY_KEY) ?? "[]");
       if (Array.isArray(savedAvailability)) {
@@ -102,10 +186,25 @@ export default function TrainingSchedule() {
     } catch (error) {
       console.error("[training-schedule] Could not read completed drills", error);
     }
+
+    const weekCheck = window.setInterval(() => {
+      if (clearExpiredWeeklyData()) {
+        queueMicrotask(() => {
+          setAvailability([]);
+          setEquipment([]);
+          setCompleted([]);
+          setSchedule([]);
+        });
+        window.dispatchEvent(new Event("nextlevel:schedule-updated"));
+      }
+    }, 60_000);
+
+    return () => window.clearInterval(weekCheck);
   }, []);
 
   useEffect(() => {
     function loadSchedule() {
+      clearExpiredWeeklyData();
     try {
       const savedSchedule: unknown = JSON.parse(localStorage.getItem(SCHEDULE_KEY) ?? "[]");
       if (Array.isArray(savedSchedule)) {
@@ -123,7 +222,14 @@ export default function TrainingSchedule() {
           "type" in item &&
           (item.type === "drill" || item.type === "break"),
           ) as ScheduleItem[];
-          queueMicrotask(() => setSchedule(nextSchedule));
+          queueMicrotask(() => {
+            setSchedule(nextSchedule);
+            setCompleted((current) => {
+              const normalized = normalizeCompletedIds(current, nextSchedule);
+              localStorage.setItem(COMPLETED_KEY, JSON.stringify(normalized));
+              return normalized;
+            });
+          });
       }
     } catch (error) {
       console.error("[training-schedule] Could not read saved schedule", error);
@@ -199,6 +305,10 @@ export default function TrainingSchedule() {
             <Package size={14} aria-hidden="true" />
             Drill Library
           </Link>
+          <Link className="side-nav-button" href="/progress">
+            <TrendingUp size={14} aria-hidden="true" />
+            Progress
+          </Link>
           <SignOutButton />
         </div>
       </header>
@@ -229,7 +339,7 @@ export default function TrainingSchedule() {
             </button>
           </div>
 
-          {availability.length ? (
+          {mounted && availability.length ? (
             <div className="availability-list">
               {availability.map((item) => (
                 <div className="availability-row" key={item.id}>
@@ -258,8 +368,10 @@ export default function TrainingSchedule() {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : mounted ? (
             <p className="availability-empty">No free times added yet. Add a time to build your week.</p>
+          ) : (
+            <p className="availability-empty">Loading your saved availability...</p>
           )}
 
           <div className="equipment-heading">
@@ -294,7 +406,7 @@ export default function TrainingSchedule() {
             </div>
           </div>
 
-          {schedule.length ? (
+          {mounted && schedule.length ? (
             <div className="schedule-week">
               {DAYS.map((day) => {
                 const dayItems = schedule
@@ -307,7 +419,7 @@ export default function TrainingSchedule() {
                     <div className="schedule-items">
                       {dayItems.map((item, index) => (
                         <article
-                          className={`schedule-item${item.type === "break" ? " is-break" : ""}${item.type === "drill" && completed.includes(getScheduleItemId(item, index)) ? " is-completed" : ""}`}
+                          className={`schedule-item${item.type === "break" ? " is-break" : ""}${item.type === "drill" && completed.includes(getScheduleItemId(item)) ? " is-completed" : ""}`}
                           key={`${day}-${item.startTime}-${item.name}-${index}`}
                         >
                           <time>{item.startTime}</time>
@@ -319,8 +431,8 @@ export default function TrainingSchedule() {
                             <label className="schedule-complete" aria-label={`Mark ${item.name} as completed`}>
                               <input
                                 type="checkbox"
-                                checked={completed.includes(getScheduleItemId(item, index))}
-                                onChange={() => toggleCompleted(getScheduleItemId(item, index))}
+                                checked={completed.includes(getScheduleItemId(item))}
+                                onChange={() => toggleCompleted(getScheduleItemId(item))}
                               />
                               <span aria-hidden="true">✓</span>
                             </label>
