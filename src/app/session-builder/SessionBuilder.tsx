@@ -1017,7 +1017,7 @@ export default function SessionBuilder({
                     key={record.id}
                   >
                     <span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(record.createdAt))}</span>
-                    <strong>{record.analysis.rating.toFixed(1)} / 10</strong>
+                    <strong>{typeof record.analysis?.rating === "number" ? record.analysis.rating.toFixed(1) : "0.0"} / 10</strong>
                     <ArrowRight size={15} aria-hidden="true" />
                   </Link>
                 ))}

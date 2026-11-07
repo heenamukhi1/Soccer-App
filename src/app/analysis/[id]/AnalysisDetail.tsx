@@ -12,6 +12,50 @@ type Analysis = {
   drills: string[];
 };
 
+function normalizeAnalysis(value: unknown): Analysis {
+  if (typeof value !== "object" || value === null) {
+    return { rating: 0, strengths: [], weaknesses: [], drills: [] };
+  }
+
+  const source = value as {
+    rating?: unknown;
+    strengths?: unknown;
+    weaknesses?: unknown;
+    drills?: unknown;
+  };
+
+  const normalizeInsights = (items: unknown): Insight[] => {
+    if (!Array.isArray(items)) return [];
+    return items.flatMap((item) => {
+      if (typeof item !== "object" || item === null) return [];
+      const insight = item as { name?: unknown; detail?: unknown };
+      return [{
+        name: typeof insight.name === "string" ? insight.name : "",
+        detail: typeof insight.detail === "string" ? insight.detail : "",
+      }];
+    }).filter((item) => item.name || item.detail);
+  };
+
+  const normalizeDrills = (items: unknown): string[] => {
+    if (!Array.isArray(items)) return [];
+    return items.flatMap((item) => {
+      if (typeof item === "string") return item.trim() ? [item] : [];
+      if (typeof item === "object" && item !== null) {
+        const drill = item as { name?: unknown };
+        return typeof drill.name === "string" && drill.name.trim() ? [drill.name] : [];
+      }
+      return [];
+    });
+  };
+
+  return {
+    rating: typeof source.rating === "number" ? source.rating : 0,
+    strengths: normalizeInsights(source.strengths),
+    weaknesses: normalizeInsights(source.weaknesses),
+    drills: normalizeDrills(source.drills),
+  };
+}
+
 export default function AnalysisDetail({
   id,
   record,
@@ -19,7 +63,14 @@ export default function AnalysisDetail({
   id: string;
   record: { id: string; created_at: string; analysis: Analysis } | null;
 }) {
-  const [resolvedRecord, setResolvedRecord] = useState(record);
+  const [resolvedRecord, setResolvedRecord] = useState<{
+    id: string;
+    created_at: string;
+    analysis: Analysis;
+  } | null>(() => record ? {
+    ...record,
+    analysis: normalizeAnalysis(record.analysis),
+  } : null);
 
   useEffect(() => {
     if (resolvedRecord || typeof window === "undefined") return;
@@ -41,7 +92,7 @@ export default function AnalysisDetail({
           setResolvedRecord({
             id: localRecord.id,
             created_at: localRecord.createdAt,
-            analysis: localRecord.analysis,
+            analysis: normalizeAnalysis(localRecord.analysis),
           });
         });
       }
@@ -73,11 +124,11 @@ export default function AnalysisDetail({
     );
   }
 
-  const analysis = resolvedRecord.analysis;
-  const rating = typeof analysis?.rating === "number" ? analysis.rating : 0;
-  const strengths = Array.isArray(analysis?.strengths) ? analysis.strengths : [];
-  const weaknesses = Array.isArray(analysis?.weaknesses) ? analysis.weaknesses : [];
-  const drills = Array.isArray(analysis?.drills) ? analysis.drills : [];
+  const analysis = resolvedRecord?.analysis ?? normalizeAnalysis(null);
+  const rating = analysis.rating;
+  const strengths = analysis.strengths;
+  const weaknesses = analysis.weaknesses;
+  const drills = analysis.drills;
   const date = new Intl.DateTimeFormat(undefined, {
     month: "long",
     day: "numeric",

@@ -93,7 +93,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .library-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 .saved-drill-list { display: grid; gap: 14px; }
 .saved-drill-group { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: #181b17; }
-.saved-drill-date { min-height: 42px; margin: 0; display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: #c7cbbd; background: #1c201a; font-family: var(--font-mono); font-size: 9px; font-weight: 500; list-style: none; cursor: pointer; }
+.saved-drill-date { width: 100%; min-height: 42px; box-sizing: border-box; margin: 0; display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: #c7cbbd; background: #1c201a; font-family: var(--font-mono); font-size: 9px; font-weight: 500; list-style: none; cursor: pointer; }
 .saved-drill-date::-webkit-details-marker { display: none; }
 .saved-drill-date::marker { content: ""; }
 .saved-drill-date span { margin-left: auto; color: #858b7d; font-size: 8px; }
@@ -118,7 +118,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .previous-analyses-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
 .previous-analyses-section > h3 { margin: 0 0 12px; font-size: 12px; font-family: var(--font-mono); text-transform: uppercase; }
 .previous-analysis-list { display: grid; gap: 8px; }
-.previous-analysis-card { min-height: 52px; display: grid; grid-template-columns: 1fr auto 20px; align-items: center; gap: 12px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: #181b17; text-decoration: none; }
+.previous-analysis-card { width: 100%; min-height: 52px; box-sizing: border-box; display: grid; grid-template-columns: 1fr auto 20px; align-items: center; gap: 12px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: #181b17; text-decoration: none; cursor: pointer; }
 .previous-analysis-card:hover { border-color: #536240; color: var(--text); background: #1d2119; }
 .previous-analysis-card strong { color: var(--lime); font-family: var(--font-mono); font-size: 11px; }
 .previous-analysis-empty { margin: 0; padding: 14px; border: 1px dashed var(--border); border-radius: 6px; color: var(--text-secondary); font-size: 11px; }
