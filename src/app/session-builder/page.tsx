@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import SessionBuilder from "./SessionBuilder";
+import SessionBuilder, { type PreviousAnalysis } from "./SessionBuilder";
 
 async function ProtectedSessionBuilder() {
   await connection();
@@ -23,7 +23,30 @@ async function ProtectedSessionBuilder() {
     redirect("/profile");
   }
 
-  return <SessionBuilder profile={profile} />;
+  let initialAnalysis: unknown = null;
+  const { data: analysisRow } = await supabase
+    .from("player_profiles")
+    .select("latest_analysis")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  initialAnalysis = analysisRow?.latest_analysis ?? null;
+
+  let initialAnalyses: PreviousAnalysis[] = [];
+  const { data: analysisRows } = await supabase
+    .from("player_analyses")
+    .select("id, created_at, analysis")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (analysisRows) {
+    initialAnalyses = analysisRows.map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      analysis: row.analysis,
+    }));
+  }
+
+  return <SessionBuilder profile={profile} initialAnalysis={initialAnalysis} initialAnalyses={initialAnalyses} />;
 }
 
 export default function SessionBuilderPage() {

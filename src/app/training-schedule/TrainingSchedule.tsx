@@ -303,7 +303,7 @@ export default function TrainingSchedule() {
           </Link>
           <Link className="side-nav-button" href="/session-builder?view=library">
             <Package size={14} aria-hidden="true" />
-            Drill Library
+            Library
           </Link>
           <Link className="side-nav-button" href="/progress">
             <TrendingUp size={14} aria-hidden="true" />

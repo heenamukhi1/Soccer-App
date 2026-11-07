@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import SignOutButton from "../sign-out-button";
 
 type Strength = { name: string; detail: string };
@@ -44,6 +45,11 @@ type AnalysisScheduleItem = {
   durationMinutes: number;
   type: "drill" | "break";
 };
+export type PreviousAnalysis = {
+  id: string;
+  createdAt: string;
+  analysis: AnalysisResult;
+};
 export type SavedPlayerProfile = {
   name: string;
   position: string | null;
@@ -60,6 +66,8 @@ const TRAINING_SCHEDULE_KEY = "nextlevel-training-schedule";
 const PROGRESS_HISTORY_KEY = "nextlevel-progress-history";
 const TRAINING_WEEK_KEY = "nextlevel-training-week";
 const TRAINING_COMPLETED_KEY = "nextlevel-training-completed";
+const LATEST_ANALYSIS_KEY = "nextlevel-latest-analysis";
+const PREVIOUS_ANALYSES_KEY = "nextlevel-previous-analyses";
 const TRAINING_COMPLETED_HISTORY_KEY = "nextlevel-training-completed-history";
 
 function getCurrentTrainingWeekStart() {
@@ -264,7 +272,15 @@ const initialDrills: Drill[] = [
   },
 ];
 
-export default function SessionBuilder({ profile }: { profile: SavedPlayerProfile }) {
+export default function SessionBuilder({
+  profile,
+  initialAnalysis,
+  initialAnalyses = [],
+}: {
+  profile: SavedPlayerProfile;
+  initialAnalysis?: unknown;
+  initialAnalyses?: PreviousAnalysis[];
+}) {
   const searchParams = useSearchParams();
   const selectedPositions = profile.positions?.length
     ? profile.positions
@@ -303,18 +319,66 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
   const [storageError, setStorageError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [playerAssessment, setPlayerAssessment] = useState("");
-  const [score, setScore] = useState(8.4);
+  const restoredAnalysis = isAnalysisResult(initialAnalysis) ? initialAnalysis : null;
+  const [score, setScore] = useState(restoredAnalysis?.rating ?? 8.4);
   const [confidence, setConfidence] = useState(91);
   const [playerMeta, setPlayerMeta] = useState(positionText ? `${positionText} / U${profile.age}` : `U${profile.age}`);
-  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [hasAnalyzed, setHasAnalyzed] = useState(Boolean(restoredAnalysis));
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [playerName, setPlayerName] = useState(profile.name);
-  const [strengths, setStrengths] = useState(initialStrengths);
-  const [weaknesses, setWeaknesses] = useState(initialWeaknesses);
-  const [drills, setDrills] = useState(initialDrills);
+  const [strengths, setStrengths] = useState(restoredAnalysis?.strengths ?? initialStrengths);
+  const [weaknesses, setWeaknesses] = useState(restoredAnalysis?.weaknesses ?? initialWeaknesses);
+  const [drills, setDrills] = useState<Drill[]>(
+    restoredAnalysis?.drills.map((drill, index) => ({
+      name: drill,
+      detail: "Recommended for this player",
+      icon: [Target, Activity, Zap][index],
+    })) ?? initialDrills,
+  );
   const [expandedInsights, setExpandedInsights] = useState<Set<string>>(new Set());
   const dashboardRef = useRef<HTMLElement>(null);
+  const [previousAnalyses, setPreviousAnalyses] = useState<PreviousAnalysis[]>(initialAnalyses);
+
+  useEffect(() => {
+    if (restoredAnalysis) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LATEST_ANALYSIS_KEY) ?? "null") as unknown;
+      if (!isAnalysisResult(saved)) return;
+      queueMicrotask(() => {
+        setScore(saved.rating);
+        setStrengths(saved.strengths);
+        setWeaknesses(saved.weaknesses);
+        setDrills(saved.drills.map((drill, index) => ({
+          name: drill,
+          detail: "Recommended for this player",
+          icon: [Target, Activity, Zap][index],
+        })));
+        setHasAnalyzed(true);
+      });
+    } catch (error) {
+      console.error("[session-builder] Could not restore the latest analysis", error);
+    }
+  }, [restoredAnalysis]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(PREVIOUS_ANALYSES_KEY) ?? "[]") as unknown;
+      if (!Array.isArray(saved)) return;
+      const local = saved.filter((item): item is PreviousAnalysis =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as PreviousAnalysis).id === "string" &&
+        typeof (item as PreviousAnalysis).createdAt === "string" &&
+        isAnalysisResult((item as PreviousAnalysis).analysis),
+      );
+      if (local.length && initialAnalyses.length === 0) {
+        queueMicrotask(() => setPreviousAnalyses(local));
+      }
+    } catch (error) {
+      console.error("[session-builder] Could not restore previous analyses", error);
+    }
+  }, [initialAnalyses.length]);
 
   function persistSavedDrills(nextDrills: SavedDrill[]) {
     try {
@@ -450,6 +514,21 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
         })),
       );
       const savedAt = new Date().toISOString();
+      const previousAnalysisId = crypto.randomUUID();
+      const previousAnalysisRecord: PreviousAnalysis = {
+        id: previousAnalysisId,
+        createdAt: savedAt,
+        analysis: data,
+      };
+      setPreviousAnalyses((current) => {
+        const next = [previousAnalysisRecord, ...current.filter((item) => item.id !== previousAnalysisId)].slice(0, 50);
+        try {
+          window.localStorage.setItem(PREVIOUS_ANALYSES_KEY, JSON.stringify(next));
+        } catch (error) {
+          console.error("[session-builder] Could not save analysis history", error);
+        }
+        return next;
+      });
       try {
         const previousRaw = window.localStorage.getItem(PROGRESS_HISTORY_KEY);
         const previous: unknown = previousRaw ? JSON.parse(previousRaw) : [];
@@ -498,6 +577,30 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
           "[session-builder] Could not save training schedule",
           error,
         );
+      }
+      try {
+        window.localStorage.setItem(LATEST_ANALYSIS_KEY, JSON.stringify(data));
+        const supabase = createClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          throw new Error("Could not identify the signed-in player.");
+        }
+        const { error: saveError } = await supabase
+          .from("player_profiles")
+          .update({
+            latest_analysis: data,
+            latest_analysis_at: savedAt,
+          })
+          .eq("user_id", user.id);
+        if (saveError) throw saveError;
+        await supabase.from("player_analyses").insert({
+          id: previousAnalysisId,
+          user_id: user.id,
+          analysis: data,
+          created_at: savedAt,
+        });
+      } catch (error) {
+        console.error("[session-builder] Could not save latest analysis", error);
       }
       setConfidence(0);
       setHasAnalyzed(true);
@@ -554,7 +657,7 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
             onClick={() => setActiveView("library")}
           >
             <Library size={14} aria-hidden="true" />
-            Drill Library
+            Library
             <span className="side-nav-count">{savedDrills.length}</span>
           </button>
           <Link className="side-nav-button" href="/training-schedule">
@@ -850,8 +953,8 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
           </div>
           <div className="library-heading">
             <div>
-              <h2>Drill Library</h2>
-              <p>Your recommended drills, saved so you can come back to them anytime.</p>
+              <h2>Library</h2>
+              <p>Your drills and previous session analyses.</p>
             </div>
           </div>
           {storageError && <p className="analysis-error" role="alert">{storageError}</p>}
@@ -901,6 +1004,26 @@ export default function SessionBuilder({ profile }: { profile: SavedPlayerProfil
               </button>
             </div>
           )}
+          <section className="previous-analyses-section" aria-labelledby="previous-analyses-heading">
+            <h3 id="previous-analyses-heading">Previous analyses</h3>
+            {previousAnalyses.length ? (
+              <div className="previous-analysis-list">
+                {previousAnalyses.map((record) => (
+                  <Link
+                    className="previous-analysis-card"
+                    href={`/analysis/${record.id}`}
+                    key={record.id}
+                  >
+                    <span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(record.createdAt))}</span>
+                    <strong>{record.analysis.rating.toFixed(1)} / 10</strong>
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="previous-analysis-empty">No previous analyses yet.</p>
+            )}
+          </section>
         </section>
       )}
 
