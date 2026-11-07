@@ -17,8 +17,7 @@ async function ProtectedAnalysisDetail({ id }: { id: string }) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!record) redirect("/session-builder?view=library");
-  return <AnalysisDetail record={record} />;
+  return <AnalysisDetail id={id} record={record} />;
 }
 
 export default function AnalysisPage({
