@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 
 const SYSTEM_PROMPT =
-  'You are an elite soccer coach. Analyze the player profile, coach match notes, optional player self-assessment, free times, and available equipment. Use all provided perspectives to create a complete plan. Return ONLY a JSON object with five keys: "rating" (a number 1-10), "strengths" (exactly 3 objects with "name" and "detail"), "weaknesses" (exactly 3 objects with "name" and "detail"), "drills" (exactly 3 actionable soccer drill strings), and "schedule" (an array of training and break items placed only inside the player free-time windows). Each schedule item must contain "day", "startTime" in 24-hour HH:MM format, "name", "durationMinutes", and "type" of either "drill" or "break". Use 5-minute breaks between drills, longer rest periods when appropriate, and only equipment the player has. Repeat useful drills at most 1 or 2 times during the week, not more. Do not invent observations or schedule items outside the provided free times.';
+  'You are an elite soccer coach. Analyze the player profile, coach match notes, optional player self-assessment, free times, and available equipment. Use all provided perspectives to create a complete plan. Return ONLY a JSON object with five keys: "rating" (a number 1-10), "strengths" (exactly 3 objects with "name" and "detail"), "weaknesses" (exactly 3 objects with "name" and "detail"), "drills" (exactly 3 actionable soccer drill strings), and "schedule" (an array of training and break items placed only inside the player free-time windows). Each schedule item must contain "day", "startTime" in 24-hour HH:MM format, "name", "durationMinutes", and "type" of either "drill" or "break". Use 5-minute breaks between drills, longer rest periods when appropriate, and only equipment the player has. Never invent a rebounder, wall, partner, training goal, cone, or other unavailable resource. If an unavailable-tool drill is the best fit, replace it with an equipment-free or available-equipment variation that trains the same skill, touches, movement, and objective. For example, a rebounder first-touch drill can become a training-partner pass, cone gate first-touch, or ball-control-and-turn drill according to the available equipment. Repeat useful drills at most 1 or 2 times during the week, not more. Do not invent observations or schedule items outside the provided free times.';
 
 const MAX_INPUT_LENGTH = 10_000;
 const MODEL = "gemini-3.8-flash";
@@ -180,9 +180,26 @@ function buildFallbackSchedule(
   return schedule;
 }
 
+function adaptDrillForEquipment(name: string, equipment: string[]) {
+  if (equipment.includes("Rebounder") || !/rebounder/i.test(name)) {
+    return name;
+  }
+  if (equipment.includes("Training partner")) {
+    return "Partner Pass and Turn Receiving Drill";
+  }
+  if (equipment.includes("Cones")) {
+    return "Cone Gate First-Touch and Turn";
+  }
+  if (equipment.includes("Soccer ball")) {
+    return "Ball Control and Turn Drill";
+  }
+  return "Ground Control and Turn Drill";
+}
+
 function normalizeSchedule(
   value: unknown,
   availability: AvailabilityWindow[],
+  equipment: string[] = [],
 ) {
   if (!isSchedule(value) || value.length === 0) return null;
 
@@ -202,7 +219,11 @@ function normalizeSchedule(
         end <= windowEnd
       );
     });
-  });
+  }).map((item) => (
+    item.type === "drill"
+      ? { ...item, name: adaptDrillForEquipment(item.name, equipment) }
+      : item
+  ));
 
   return validItems.length > 0 ? validItems.slice(0, 60) : null;
 }
@@ -369,13 +390,18 @@ export async function POST(request: Request) {
     if (typeof result === "object" && result !== null) {
       const resultRecord = result as Record<string, unknown>;
       if (isThreeStrings(resultRecord.drills)) {
+        const adaptedDrills = resultRecord.drills.map((drill) =>
+          adaptDrillForEquipment(drill, trainingEquipment),
+        );
+        resultRecord.drills = adaptedDrills;
         const geminiSchedule = normalizeSchedule(
           resultRecord.schedule,
           trainingAvailability,
+          trainingEquipment,
         );
         resultRecord.schedule =
           geminiSchedule ??
-          buildFallbackSchedule(resultRecord.drills, trainingAvailability);
+          buildFallbackSchedule(adaptedDrills, trainingAvailability);
       }
     }
 

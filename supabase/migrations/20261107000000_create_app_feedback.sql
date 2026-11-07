@@ -8,7 +8,11 @@ create table if not exists public.app_feedback (
 
 alter table public.app_feedback enable row level security;
 
+drop policy if exists "Anyone can submit feedback" on public.app_feedback;
+
 create policy "Anyone can submit feedback"
   on public.app_feedback for insert
   to anon, authenticated
   with check (char_length(btrim(message)) > 0);
+
+grant insert on table public.app_feedback to anon, authenticated;

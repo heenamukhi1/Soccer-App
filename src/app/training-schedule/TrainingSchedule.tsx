@@ -104,6 +104,42 @@ function normalizeCompletedIds(completedIds: string[], schedule: ScheduleItem[])
   })));
 }
 
+function adaptDrillForEquipment(name: string, equipment: string[]) {
+  const normalizedName = name.toLowerCase();
+
+  if (!equipment.includes("Rebounder")) {
+    if (normalizedName.includes("rebounder")) {
+      if (equipment.includes("Training partner")) {
+        return "Partner Pass and Turn Receiving Drill";
+      }
+      if (equipment.includes("Cones")) {
+        return "Cone Gate First-Touch and Turn";
+      }
+      if (equipment.includes("Soccer ball")) {
+        return "Ball Control and Turn Drill";
+      }
+      return "Ground Control and Turn Drill";
+    }
+  }
+
+  if (equipment.includes("Rebounder")) {
+    if (normalizedName.startsWith("partner pass and receive")) {
+      return "Rebounder Partner Pass and Turn";
+    }
+    if (normalizedName.startsWith("cone gate first-touch")) {
+      return "Rebounder First-Touch and Turn";
+    }
+    if (normalizedName.startsWith("directional ball control")) {
+      return "Rebounder Ball Control and Turn";
+    }
+    if (normalizedName === "ground control and turn drill") {
+      return "Rebounder First-Touch and Turn";
+    }
+  }
+
+  return name;
+}
+
 export default function TrainingSchedule() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [equipment, setEquipment] = useState<string[]>([]);
@@ -301,6 +337,23 @@ export default function TrainingSchedule() {
         ? current.filter((value) => value !== item)
         : [...current, item];
       localStorage.setItem(EQUIPMENT_KEY, JSON.stringify(next));
+
+      setSchedule((currentSchedule) => {
+        const nextSchedule = currentSchedule.map((scheduleItem) =>
+          scheduleItem.type === "drill"
+            ? { ...scheduleItem, name: adaptDrillForEquipment(scheduleItem.name, next) }
+            : scheduleItem,
+        );
+        localStorage.setItem(SCHEDULE_KEY, JSON.stringify(nextSchedule));
+          setCompleted((currentCompleted) => {
+            const normalizedCompleted = normalizeCompletedIds(currentCompleted, nextSchedule);
+            localStorage.setItem(COMPLETED_KEY, JSON.stringify(normalizedCompleted));
+            return normalizedCompleted;
+          });
+        window.dispatchEvent(new Event("nextlevel:schedule-updated"));
+        return nextSchedule;
+      });
+
       return next;
     });
   }
