@@ -158,14 +158,14 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .schedule-day { overflow: hidden; border: 1px solid #31372f; border-radius: 9px; background: #191d18; box-shadow: 0 12px 30px rgb(0 0 0 / 9%); }
 .schedule-day h3 { margin: 0; padding: 12px 14px; border-bottom: 1px solid #30362d; color: #c7f36b; background: linear-gradient(90deg, #242a20 0%, #1d211b 100%); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
 .schedule-items { display: grid; gap: 7px; padding: 9px; }
-.schedule-item { min-height: 58px; display: grid; grid-template-columns: 64px minmax(0, 1fr) 36px; align-items: center; gap: 12px; padding: 7px 8px; border: 1px solid #343b31; border-radius: 7px; background: linear-gradient(135deg, #242922 0%, #1e221d 100%); box-shadow: inset 3px 0 0 rgb(199 243 107 / 42%); transition: border-color 160ms ease, transform 160ms ease, background 160ms ease; }
+.schedule-item { min-height: 58px; display: grid; grid-template-columns: 78px minmax(0, 1fr) 36px; align-items: center; gap: 12px; padding: 7px 8px; border: 1px solid #343b31; border-radius: 7px; background: linear-gradient(135deg, #242922 0%, #1e221d 100%); box-shadow: inset 3px 0 0 rgb(199 243 107 / 42%); transition: border-color 160ms ease, transform 160ms ease, background 160ms ease; }
 .schedule-item:hover { border-color: #536240; transform: translateY(-1px); }
 .schedule-item:last-child { border-bottom: 1px solid #343b31; }
-.schedule-item time { min-width: 58px; justify-self: start; padding: 7px 6px; border: 1px solid rgb(199 243 107 / 20%); border-radius: 5px; color: #d9f9a0; background: rgb(199 243 107 / 7%); font-family: var(--font-mono); font-size: 10px; text-align: center; }
+.schedule-item time { min-width: 72px; justify-self: start; padding: 7px 6px; border: 1px solid rgb(199 243 107 / 20%); border-radius: 5px; color: #d9f9a0; background: rgb(199 243 107 / 7%); font-family: var(--font-mono); font-size: 10px; text-align: center; white-space: nowrap; }
 .schedule-item > div { display: flex; flex-direction: column; gap: 4px; }
 .schedule-item strong { color: #f1f3ec; font-size: 11px; font-weight: 650; letter-spacing: 0.01em; }
 .schedule-item span { color: #aeb5a4; font-size: 9px; }
-.schedule-item.is-break { min-height: 46px; grid-template-columns: 64px minmax(0, 1fr) 36px; border-color: #34384a; background: linear-gradient(135deg, #252936 0%, #1d202a 100%); box-shadow: inset 3px 0 0 rgb(148 186 255 / 45%); }
+.schedule-item.is-break { min-height: 46px; grid-template-columns: 78px minmax(0, 1fr) 36px; border-color: #34384a; background: linear-gradient(135deg, #252936 0%, #1d202a 100%); box-shadow: inset 3px 0 0 rgb(148 186 255 / 45%); }
 .schedule-item.is-break:hover { border-color: #4a5273; }
 .schedule-item.is-break time { border-color: rgb(148 186 255 / 18%); color: #b8cefa; background: rgb(148 186 255 / 7%); }
 .schedule-item.is-break strong { color: #c9cddd; font-weight: 500; }

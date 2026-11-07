@@ -39,6 +39,24 @@ const COMPLETED_KEY = "nextlevel-training-completed";
 const COMPLETED_HISTORY_KEY = "nextlevel-training-completed-history";
 const WEEK_KEY = "nextlevel-training-week";
 
+const TIME_OPTIONS = Array.from({ length: 96 }, (_, index) => {
+  const hours = String(Math.floor(index / 4)).padStart(2, "0");
+  const minutes = String((index % 4) * 15).padStart(2, "0");
+  return `${hours}:${minutes}`;
+});
+
+function formatTime12Hour(value: string) {
+  const [hoursText, minutesText = "00"] = value.split(":");
+  const hours = Number(hoursText);
+  if (!Number.isFinite(hours) || hours < 0 || hours > 23) return value;
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${minutesText.padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+}
+
+function getTimeOptions(currentValue: string) {
+  return TIME_OPTIONS.includes(currentValue) ? TIME_OPTIONS : [currentValue, ...TIME_OPTIONS];
+}
+
 function normalizeScheduleText(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
@@ -351,11 +369,19 @@ export default function TrainingSchedule() {
                   </label>
                   <label>
                     <span>From</span>
-                    <input type="time" value={item.startTime} onChange={(event) => updateAvailability(item.id, "startTime", event.target.value)} />
+                    <select value={item.startTime} onChange={(event) => updateAvailability(item.id, "startTime", event.target.value)}>
+                      {getTimeOptions(item.startTime).map((value) => (
+                        <option key={value} value={value}>{formatTime12Hour(value)}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>To</span>
-                    <input type="time" value={item.endTime} onChange={(event) => updateAvailability(item.id, "endTime", event.target.value)} />
+                    <select value={item.endTime} onChange={(event) => updateAvailability(item.id, "endTime", event.target.value)}>
+                      {getTimeOptions(item.endTime).map((value) => (
+                        <option key={value} value={value}>{formatTime12Hour(value)}</option>
+                      ))}
+                    </select>
                   </label>
                   <button
                     className="availability-delete"
@@ -422,7 +448,7 @@ export default function TrainingSchedule() {
                           className={`schedule-item${item.type === "break" ? " is-break" : ""}${item.type === "drill" && completed.includes(getScheduleItemId(item)) ? " is-completed" : ""}`}
                           key={`${day}-${item.startTime}-${item.name}-${index}`}
                         >
-                          <time>{item.startTime}</time>
+                          <time>{formatTime12Hour(item.startTime)}</time>
                           <div>
                             <strong>{item.name}</strong>
                             <span>{item.durationMinutes} minutes</span>
