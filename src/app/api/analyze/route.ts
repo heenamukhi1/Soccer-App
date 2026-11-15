@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
-import { auth } from "@/auth";
+import { createClient } from "@/lib/supabase/server";
 
 const SYSTEM_PROMPT =
-  'You are an elite soccer coach. Analyze the player profile and any provided match notes, attached PDF reports, and/or screenshots/images (e.g., match stats, scouting reports, tactical heatmaps, or whiteboard notes). Return ONLY a JSON object with four keys: "rating" (a number 1-10), "strengths" (an array of exactly 3 objects, each with "name" as a concise skill title and "detail" as a specific, evidence-based explanation tied to the provided notes, documents, or images), "weaknesses" (an array of exactly 3 objects, each with "name" as a concise development-area title and "detail" as a specific explanation of what happened, why it matters, and what to improve), and "drills" (an array of exactly 3 actionable soccer drill strings). Do not invent observations that are not supported by the profile, notes, or uploaded documents/images. Make each explanation concrete and useful, not generic.';
+  'You are an elite soccer coach. Analyze the player profile, coach match notes, any attached PDF reports or screenshot images (e.g., match stats, scouting reports, tactical heatmaps, or whiteboard notes), optional player self-assessment, free times, and available equipment. Use all provided perspectives to create a complete plan. Return ONLY a JSON object with five keys: "rating" (a number 1-10), "strengths" (exactly 3 objects with "name" and "detail"), "weaknesses" (exactly 3 objects with "name" and "detail"), "drills" (exactly 3 actionable soccer drill strings), and "schedule" (an array of training and break items placed only inside the player free-time windows). Each schedule item must contain "day", "startTime" in 24-hour HH:MM format, "name", "durationMinutes", and "type" of either "drill" or "break". Use 5-minute breaks between drills, longer rest periods when appropriate, and only equipment the player has. Never invent a rebounder, wall, partner, training goal, cone, or other unavailable resource. If an unavailable-tool drill is the best fit, replace it with an equipment-free or available-equipment variation that trains the same skill, touches, movement, and objective. For example, a rebounder first-touch drill can become a training-partner pass, cone gate first-touch, or ball-control-and-turn drill according to the available equipment. Repeat useful drills at most 1 or 2 times during the week, not more. Do not invent observations or schedule items outside the provided free times.';
 
 const MAX_INPUT_LENGTH = 10_000;
 const MODEL = "gemini-3.8-flash";
@@ -27,11 +27,20 @@ type AnalysisResult = {
   strengths: AnalysisInsight[];
   weaknesses: AnalysisInsight[];
   drills: string[];
+  schedule: AnalysisScheduleItem[];
 };
 
 type AnalysisInsight = {
   name: string;
   detail: string;
+};
+
+type AnalysisScheduleItem = {
+  day: string;
+  startTime: string;
+  name: string;
+  durationMinutes: number;
+  type: "drill" | "break";
 };
 
 function isInputText(value: unknown): value is string {
@@ -40,6 +49,10 @@ function isInputText(value: unknown): value is string {
     value.trim().length > 0 &&
     value.length <= MAX_INPUT_LENGTH
   );
+}
+
+function isOptionalInputText(value: unknown): value is string {
+  return typeof value === "string" && value.length <= MAX_INPUT_LENGTH;
 }
 
 function isThreeStrings(value: unknown): value is string[] {
@@ -70,6 +83,151 @@ function isThreeInsights(value: unknown): value is AnalysisInsight[] {
   );
 }
 
+function isSchedule(value: unknown): value is AnalysisScheduleItem[] {
+  return Array.isArray(value) &&
+    value.length <= 60 &&
+    value.every((item) =>
+      typeof item === "object" &&
+      item !== null &&
+      "day" in item &&
+      typeof item.day === "string" &&
+      item.day.trim().length > 0 &&
+      "startTime" in item &&
+      typeof item.startTime === "string" &&
+      /^([01]\d|2[0-3]):[0-5]\d$/.test(item.startTime) &&
+      "name" in item &&
+      typeof item.name === "string" &&
+      item.name.trim().length > 0 &&
+      "durationMinutes" in item &&
+      typeof item.durationMinutes === "number" &&
+      Number.isFinite(item.durationMinutes) &&
+      item.durationMinutes >= 1 &&
+      "type" in item &&
+      (item.type === "drill" || item.type === "break"),
+    );
+}
+
+function timeToMinutes(value: string) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function minutesToTime(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+type AvailabilityWindow = {
+  day: string;
+  startTime: string;
+  endTime: string;
+};
+
+function buildFallbackSchedule(
+  drills: string[],
+  availability: AvailabilityWindow[],
+) {
+  const schedule: AnalysisScheduleItem[] = [];
+  const drillCountByName = new Map<string, number>();
+  let availabilityIndex = 0;
+
+  for (const window of availability) {
+    const start = timeToMinutes(window.startTime);
+    const end = timeToMinutes(window.endTime);
+    if (start === null || end === null || end - start < 25) continue;
+
+    let cursor = start;
+    let sessionsInWindow = 0;
+
+    while (cursor + 20 <= end && sessionsInWindow < 2) {
+      let drill = drills[availabilityIndex % drills.length];
+      let attempts = 0;
+      while ((drillCountByName.get(drill) ?? 0) >= 2 && attempts < drills.length) {
+        availabilityIndex += 1;
+        drill = drills[availabilityIndex % drills.length];
+        attempts += 1;
+      }
+      const repeatedCount = drillCountByName.get(drill) ?? 0;
+      if (repeatedCount >= 2) break;
+
+      schedule.push({
+        day: window.day,
+        startTime: minutesToTime(cursor),
+        name: drill,
+        durationMinutes: 20,
+        type: "drill",
+      });
+      drillCountByName.set(drill, repeatedCount + 1);
+      cursor += 20;
+      sessionsInWindow += 1;
+      availabilityIndex += 1;
+
+      if (cursor + 5 <= end && sessionsInWindow < 2) {
+        schedule.push({
+          day: window.day,
+          startTime: minutesToTime(cursor),
+          name: "Rest break",
+          durationMinutes: 5,
+          type: "break",
+        });
+        cursor += 5;
+      }
+    }
+  }
+
+  return schedule;
+}
+
+function adaptDrillForEquipment(name: string, equipment: string[]) {
+  if (equipment.includes("Rebounder") || !/rebounder/i.test(name)) {
+    return name;
+  }
+  if (equipment.includes("Training partner")) {
+    return "Partner Pass and Turn Receiving Drill";
+  }
+  if (equipment.includes("Cones")) {
+    return "Cone Gate First-Touch and Turn";
+  }
+  if (equipment.includes("Soccer ball")) {
+    return "Ball Control and Turn Drill";
+  }
+  return "Ground Control and Turn Drill";
+}
+
+function normalizeSchedule(
+  value: unknown,
+  availability: AvailabilityWindow[],
+  equipment: string[] = [],
+) {
+  if (!isSchedule(value) || value.length === 0) return null;
+
+  const validItems = value.filter((item) => {
+    const start = timeToMinutes(item.startTime);
+    if (start === null) return false;
+    const end = start + item.durationMinutes;
+
+    return availability.some((window) => {
+      const windowStart = timeToMinutes(window.startTime);
+      const windowEnd = timeToMinutes(window.endTime);
+      return (
+        window.day === item.day &&
+        windowStart !== null &&
+        windowEnd !== null &&
+        start >= windowStart &&
+        end <= windowEnd
+      );
+    });
+  }).map((item) => (
+    item.type === "drill"
+      ? { ...item, name: adaptDrillForEquipment(item.name, equipment) }
+      : item
+  ));
+
+  return validItems.length > 0 ? validItems.slice(0, 60) : null;
+}
+
 function isAnalysisResult(value: unknown): value is AnalysisResult {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -78,14 +236,14 @@ function isAnalysisResult(value: unknown): value is AnalysisResult {
   const result = value as Record<string, unknown>;
 
   return (
-    Object.keys(result).length === 4 &&
     typeof result.rating === "number" &&
     Number.isFinite(result.rating) &&
     result.rating >= 1 &&
     result.rating <= 10 &&
     isThreeInsights(result.strengths) &&
     isThreeInsights(result.weaknesses) &&
-    isThreeStrings(result.drills)
+    isThreeStrings(result.drills) &&
+    isSchedule(result.schedule)
   );
 }
 
@@ -94,9 +252,10 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   console.info("[api/analyze] Request received", { requestId });
 
-  const session = await auth();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!user) {
     console.warn("[api/analyze] Request rejected", {
       requestId,
       reason: "unauthenticated",
@@ -125,6 +284,20 @@ export async function POST(request: Request) {
     return respond(
       {
         error: `Player profile must contain 1–${MAX_INPUT_LENGTH} characters.`,
+      },
+      requestId,
+      400,
+    );
+  }
+
+  if (
+    input.playerAssessment !== undefined &&
+    !isOptionalInputText(input.playerAssessment)
+  ) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_assessment" });
+    return respond(
+      {
+        error: `The optional player assessment may contain up to ${MAX_INPUT_LENGTH} characters.`,
       },
       requestId,
       400,
@@ -225,8 +398,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const playerProfile = (input.playerProfile as string).trim();
+  const playerProfile = (typeof input.playerProfile === "string" ? input.playerProfile : "").trim();
   const matchNotes = hasNotes ? (input.matchNotes as string).trim() : "";
+  const playerAssessment =
+    typeof input.playerAssessment === "string" ? input.playerAssessment.trim() : "";
+  const trainingAvailability =
+    Array.isArray(input.trainingAvailability)
+      ? input.trainingAvailability
+          .filter((item): item is Record<string, unknown> =>
+            typeof item === "object" && item !== null,
+          )
+          .map((item) => ({
+            day: typeof item.day === "string" ? item.day : "",
+            startTime: typeof item.startTime === "string" ? item.startTime : "",
+            endTime: typeof item.endTime === "string" ? item.endTime : "",
+          }))
+          .filter((item) => item.day && item.startTime && item.endTime)
+      : [];
+  const trainingEquipment =
+    Array.isArray(input.trainingEquipment)
+      ? input.trainingEquipment.filter(
+          (item): item is string => typeof item === "string" && item.trim().length > 0,
+        )
+      : [];
 
   type ContentPart =
     | { inlineData: { mimeType: string; data: string } }
@@ -243,9 +437,18 @@ export async function POST(request: Request) {
     });
   }
 
-  const promptText = `Player Profile:\n${playerProfile}\n\nCoach's Notes & Observations:\n${
-    matchNotes || "(No additional written notes provided; evaluate the player using the attached PDF report and/or screenshot images)"
-  }`;
+  const promptText = [
+    `Player Profile:\n${playerProfile}`,
+    matchNotes
+      ? `Coach Match Notes:\n${matchNotes}`
+      : "(No additional written coach notes provided; evaluate the player using the attached PDF report and/or screenshot images)",
+    playerAssessment ? `Player Self-Assessment:\n${playerAssessment}` : null,
+    trainingAvailability.length
+      ? `Available Free Times:\n${trainingAvailability.map((item) => `${item.day}: ${item.startTime}-${item.endTime}`).join("\n")}`
+      : "Available Free Times: None provided; do not invent times outside the player's schedule.",
+    `Available Equipment:\n${trainingEquipment.length ? trainingEquipment.join(", ") : "No equipment listed; use bodyweight drills only."}`,
+  ].filter(Boolean).join("\n\n");
+
   contents.push({ text: promptText });
 
   console.info("[api/analyze] Gemini request", {
@@ -297,6 +500,24 @@ export async function POST(request: Request) {
         requestId,
         502,
       );
+    }
+
+    if (typeof result === "object" && result !== null) {
+      const resultRecord = result as Record<string, unknown>;
+      if (isThreeStrings(resultRecord.drills)) {
+        const adaptedDrills = resultRecord.drills.map((drill) =>
+          adaptDrillForEquipment(drill, trainingEquipment),
+        );
+        resultRecord.drills = adaptedDrills;
+        const geminiSchedule = normalizeSchedule(
+          resultRecord.schedule,
+          trainingAvailability,
+          trainingEquipment,
+        );
+        resultRecord.schedule =
+          geminiSchedule ??
+          buildFallbackSchedule(adaptedDrills, trainingAvailability);
+      }
     }
 
     if (!isAnalysisResult(result)) {
