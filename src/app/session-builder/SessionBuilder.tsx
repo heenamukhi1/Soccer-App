@@ -782,7 +782,7 @@ export default function SessionBuilder({
           <span className="brand-tagline">PERFORMANCE STUDIO</span>
         </a>
         <div className="topbar-right">
-          <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2025 / 26</span>
+          <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2026 / 27</span>
           <Link className="edit-profile-button" href="/profile">Edit profile</Link>
           <button
             className="side-nav-button"

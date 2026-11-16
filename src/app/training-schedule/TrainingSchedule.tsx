@@ -368,7 +368,7 @@ export default function TrainingSchedule() {
           <span className="brand-tagline">PERFORMANCE STUDIO</span>
         </Link>
         <div className="topbar-right">
-          <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2025 / 26</span>
+          <span className="season-label">PLAYER DEVELOPMENT <span>·</span> 2026 / 27</span>
           <Link className="edit-profile-button" href="/session-builder?view=session">
             Session Builder
           </Link>
