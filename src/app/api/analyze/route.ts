@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 
 const SYSTEM_PROMPT =
-  'You are an elite soccer coach. Analyze the player profile, coach match notes, optional player self-assessment, free times, and available equipment. Use all provided perspectives to create a complete plan. Return ONLY a JSON object with five keys: "rating" (a number 1-10), "strengths" (exactly 3 objects with "name" and "detail"), "weaknesses" (exactly 3 objects with "name" and "detail"), "drills" (exactly 3 actionable soccer drill strings), and "schedule" (an array of training and break items placed only inside the player free-time windows). Each schedule item must contain "day", "startTime" in 24-hour HH:MM format, "name", "durationMinutes", and "type" of either "drill" or "break". Use 5-minute breaks between drills, longer rest periods when appropriate, and only equipment the player has. Never invent a rebounder, wall, partner, training goal, cone, or other unavailable resource. If an unavailable-tool drill is the best fit, replace it with an equipment-free or available-equipment variation that trains the same skill, touches, movement, and objective. For example, a rebounder first-touch drill can become a training-partner pass, cone gate first-touch, or ball-control-and-turn drill according to the available equipment. Repeat useful drills at most 1 or 2 times during the week, not more. Do not invent observations or schedule items outside the provided free times.';
+  'You are an elite soccer coach. Analyze the player profile, coach match notes, any attached PDF reports or screenshot images (e.g., match stats, scouting reports, tactical heatmaps, or whiteboard notes), optional player self-assessment, free times, and available equipment. Use all provided perspectives to create a complete plan. Return ONLY a JSON object with five keys: "rating" (a number 1-10), "strengths" (exactly 3 objects with "name" and "detail"), "weaknesses" (exactly 3 objects with "name" and "detail"), "drills" (exactly 3 actionable soccer drill strings), and "schedule" (an array of training and break items placed only inside the player free-time windows). Each schedule item must contain "day", "startTime" in 24-hour HH:MM format, "name", "durationMinutes", and "type" of either "drill" or "break". Use 5-minute breaks between drills, longer rest periods when appropriate, and only equipment the player has. Never invent a rebounder, wall, partner, training goal, cone, or other unavailable resource. If an unavailable-tool drill is the best fit, replace it with an equipment-free or available-equipment variation that trains the same skill, touches, movement, and objective. For example, a rebounder first-touch drill can become a training-partner pass, cone gate first-touch, or ball-control-and-turn drill according to the available equipment. Repeat useful drills at most 1 or 2 times during the week, not more. Do not invent observations or schedule items outside the provided free times.';
 
 const MAX_INPUT_LENGTH = 10_000;
 const MODEL = "gemini-3.8-flash";
@@ -274,27 +274,120 @@ export async function POST(request: Request) {
 
   if (typeof body !== "object" || body === null) {
     console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_body" });
-    return respond({ error: "A player profile and match notes are required." }, requestId, 400);
+    return respond({ error: "A player profile and feedback notes or attachments (PDF/images) are required." }, requestId, 400);
   }
 
   const input = body as Record<string, unknown>;
 
-  if (
-    !isInputText(input.playerProfile) ||
-    !isInputText(input.matchNotes) ||
-    (input.playerAssessment !== undefined && !isOptionalInputText(input.playerAssessment))
-  ) {
-    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_input" });
+  if (!isInputText(input.playerProfile)) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_profile" });
     return respond(
       {
-        error: `Player profile and match notes must each contain 1–${MAX_INPUT_LENGTH} characters. The optional player assessment may contain up to ${MAX_INPUT_LENGTH} characters.`,
+        error: `Player profile must contain 1–${MAX_INPUT_LENGTH} characters.`,
       },
       requestId,
       400,
     );
   }
 
-  const apiKey = process.env.GOOGLE_API_KEY;
+  if (
+    input.playerAssessment !== undefined &&
+    !isOptionalInputText(input.playerAssessment)
+  ) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "invalid_assessment" });
+    return respond(
+      {
+        error: `The optional player assessment may contain up to ${MAX_INPUT_LENGTH} characters.`,
+      },
+      requestId,
+      400,
+    );
+  }
+
+  const hasNotes = typeof input.matchNotes === "string" && input.matchNotes.trim().length > 0;
+
+  const ALLOWED_MIME_TYPES = new Set([
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/gif",
+  ]);
+
+  type UploadedFile = {
+    base64: string;
+    mimeType: string;
+    name?: string;
+  };
+
+  const incomingFiles: UploadedFile[] = [];
+
+  // Check array of files
+  if (Array.isArray(input.files)) {
+    for (const item of input.files) {
+      if (
+        typeof item === "object" &&
+        item !== null &&
+        typeof item.base64 === "string" &&
+        item.base64.length > 0 &&
+        item.base64.length <= 25_000_000 &&
+        typeof item.mimeType === "string" &&
+        ALLOWED_MIME_TYPES.has(item.mimeType.toLowerCase())
+      ) {
+        incomingFiles.push({
+          base64: item.base64.includes(",") ? item.base64.split(",")[1] : item.base64,
+          mimeType: item.mimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : item.mimeType.toLowerCase(),
+          name: typeof item.name === "string" ? item.name : undefined,
+        });
+      }
+    }
+  }
+
+  // Backwards compatibility for single pdf object
+  const pdfInput =
+    typeof input.pdf === "object" && input.pdf !== null
+      ? (input.pdf as Record<string, unknown>)
+      : null;
+  if (
+    incomingFiles.length === 0 &&
+    pdfInput !== null &&
+    typeof pdfInput.base64 === "string" &&
+    pdfInput.base64.length > 0
+  ) {
+    const raw = pdfInput.base64 as string;
+    incomingFiles.push({
+      base64: raw.includes(",") ? raw.split(",")[1] : raw,
+      mimeType: "application/pdf",
+      name: typeof pdfInput.name === "string" ? pdfInput.name : undefined,
+    });
+  }
+
+  const hasFiles = incomingFiles.length > 0;
+
+  if (!hasNotes && !hasFiles) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "missing_feedback_and_files" });
+    return respond(
+      {
+        error: "Please provide coach's feedback notes, an uploaded PDF, or screenshots/images.",
+      },
+      requestId,
+      400,
+    );
+  }
+
+  if (hasNotes && typeof input.matchNotes === "string" && input.matchNotes.length > MAX_INPUT_LENGTH) {
+    console.warn("[api/analyze] Request rejected", { requestId, reason: "notes_too_long" });
+    return respond(
+      {
+        error: `Coach's feedback notes must not exceed ${MAX_INPUT_LENGTH} characters.`,
+      },
+      requestId,
+      400,
+    );
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     console.error("[api/analyze] Gemini API key is missing", { requestId });
@@ -305,8 +398,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const playerProfile = input.playerProfile.trim();
-  const matchNotes = input.matchNotes.trim();
+  const playerProfile = (typeof input.playerProfile === "string" ? input.playerProfile : "").trim();
+  const matchNotes = hasNotes ? (input.matchNotes as string).trim() : "";
   const playerAssessment =
     typeof input.playerAssessment === "string" ? input.playerAssessment.trim() : "";
   const trainingAvailability =
@@ -328,9 +421,27 @@ export async function POST(request: Request) {
           (item): item is string => typeof item === "string" && item.trim().length > 0,
         )
       : [];
-  const contents = [
+
+  type ContentPart =
+    | { inlineData: { mimeType: string; data: string } }
+    | { text: string };
+
+  const contents: ContentPart[] = [];
+
+  for (const file of incomingFiles) {
+    contents.push({
+      inlineData: {
+        mimeType: file.mimeType,
+        data: file.base64,
+      },
+    });
+  }
+
+  const promptText = [
     `Player Profile:\n${playerProfile}`,
-    `Coach Match Notes:\n${matchNotes}`,
+    matchNotes
+      ? `Coach Match Notes:\n${matchNotes}`
+      : "(No additional written coach notes provided; evaluate the player using the attached PDF report and/or screenshot images)",
     playerAssessment ? `Player Self-Assessment:\n${playerAssessment}` : null,
     trainingAvailability.length
       ? `Available Free Times:\n${trainingAvailability.map((item) => `${item.day}: ${item.startTime}-${item.endTime}`).join("\n")}`
@@ -338,11 +449,15 @@ export async function POST(request: Request) {
     `Available Equipment:\n${trainingEquipment.length ? trainingEquipment.join(", ") : "No equipment listed; use bodyweight drills only."}`,
   ].filter(Boolean).join("\n\n");
 
+  contents.push({ text: promptText });
+
   console.info("[api/analyze] Gemini request", {
     requestId,
     model: MODEL,
-    systemInstruction: SYSTEM_PROMPT,
-    contents,
+    fileCount: incomingFiles.length,
+    fileTypes: incomingFiles.map((f) => f.mimeType),
+    fileNames: incomingFiles.map((f) => f.name).filter(Boolean),
+    matchNotesLength: matchNotes.length,
     responseMimeType: "application/json",
   });
 
@@ -443,6 +558,8 @@ export async function POST(request: Request) {
       model: MODEL,
       durationMs: Date.now() - startedAt,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorCause: (error as { cause?: unknown })?.cause,
       providerStatus,
       providerCode: errorCode,
     });

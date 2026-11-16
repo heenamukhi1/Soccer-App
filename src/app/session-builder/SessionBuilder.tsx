@@ -10,9 +10,13 @@ import {
   ChevronDown,
   Clock3,
   Dumbbell,
+  FileText,
+  FileUp,
   Gauge,
+  ImageIcon,
   LoaderCircle,
   Library,
+  Plus,
   ShieldCheck,
   Sparkles,
   Target,
@@ -337,6 +341,19 @@ export default function SessionBuilder({
     })) ?? initialDrills,
   );
   const [expandedInsights, setExpandedInsights] = useState<Set<string>>(new Set());
+  type AttachedFile = {
+    id: string;
+    name: string;
+    size: number;
+    mimeType: string;
+    base64: string;
+    previewUrl?: string;
+  };
+
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fileError, setFileError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const dashboardRef = useRef<HTMLElement>(null);
   const [previousAnalyses, setPreviousAnalyses] = useState<PreviousAnalysis[]>(initialAnalyses);
 
@@ -380,6 +397,110 @@ export default function SessionBuilder({
     }
   }, [initialAnalyses.length]);
 
+  function getFileMimeType(file: File): string {
+    if (file.type) {
+      return file.type.toLowerCase() === "image/jpg" ? "image/jpeg" : file.type.toLowerCase();
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "pdf") return "application/pdf";
+    if (ext === "png") return "image/png";
+    if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+    if (ext === "webp") return "image/webp";
+    if (ext === "gif") return "image/gif";
+    return "";
+  }
+
+  function processSelectedFiles(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+
+    setFileError("");
+
+    list.forEach((file) => {
+      const mime = getFileMimeType(file);
+      if (!mime || (!mime.startsWith("image/") && mime !== "application/pdf")) {
+        setFileError("Supported formats: PDF (.pdf) and images (.png, .jpg, .webp).");
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        setFileError(`"${file.name}" exceeds the 15MB limit.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.includes(",") ? result.split(",")[1] : result;
+        const isImage = mime.startsWith("image/");
+        const item: AttachedFile = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          size: file.size,
+          mimeType: mime,
+          base64,
+          previewUrl: isImage ? result : undefined,
+        };
+        setAttachedFiles((prev) => [...prev, item]);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      processSelectedFiles(files);
+    }
+    if (event.target) {
+      event.target.value = "";
+    }
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      processSelectedFiles(files);
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = event.clipboardData.items;
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf("image") !== -1) {
+        const blob = item.getAsFile();
+        if (blob) {
+          const timestamp = new Date().toTimeString().slice(0, 8).replace(/:/g, "-");
+          const file = new File([blob], `screenshot-${timestamp}.png`, {
+            type: blob.type || "image/png",
+          });
+          pastedFiles.push(file);
+        }
+      }
+    }
+    if (pastedFiles.length > 0) {
+      processSelectedFiles(pastedFiles);
+    }
+  }
+
+  function removeAttachedFile(id: string) {
+    setAttachedFiles((prev) => prev.filter((f) => f.id !== id));
+    setFileError("");
+  }
+
   function persistSavedDrills(nextDrills: SavedDrill[]) {
     try {
       const serialized = JSON.stringify(nextDrills);
@@ -420,7 +541,15 @@ export default function SessionBuilder({
       profileLength: profileText.length,
       matchNotesLength: feedback.length,
       playerAssessmentLength: playerAssessment.length,
+      fileCount: attachedFiles.length,
+      files: attachedFiles.map((f) => ({ name: f.name, mime: f.mimeType })),
     });
+
+    if (!feedback.trim() && attachedFiles.length === 0) {
+      setAnalysisError("Please provide coach's feedback notes, an uploaded PDF, or screenshots/images.");
+      setIsAnalyzing(false);
+      return;
+    }
 
     if (window.matchMedia("(max-width: 950px)").matches) {
       dashboardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -449,6 +578,11 @@ export default function SessionBuilder({
           playerAssessment,
           trainingAvailability,
           trainingEquipment,
+          files: attachedFiles.map((file) => ({
+            name: file.name,
+            mimeType: file.mimeType,
+            base64: file.base64,
+          })),
         }),
       });
       const elapsedMs = Math.round(performance.now() - startedAt);
@@ -716,16 +850,115 @@ export default function SessionBuilder({
             </div>
 
             <div className="field-group">
-              <label htmlFor="coach-feedback">Coach&apos;s Feedback Notes</label>
+              <div className="field-label-row">
+                <label htmlFor="coach-feedback">
+                  Coach&apos;s Feedback Notes <span>(Upload PDF/Images or type notes)</span>
+                </label>
+              </div>
+
+              {attachedFiles.length > 0 && (
+                <div className="attached-files-list">
+                  {attachedFiles.map((file) => (
+                    <div key={file.id} className="pdf-attached-card">
+                      {file.mimeType.startsWith("image/") && file.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={file.previewUrl}
+                          alt={file.name}
+                          className="pdf-attached-thumb"
+                        />
+                      ) : (
+                        <div className="pdf-attached-icon">
+                          <FileText size={18} aria-hidden="true" />
+                        </div>
+                      )}
+                      <div className="pdf-attached-info">
+                        <span className="pdf-attached-name" title={file.name}>
+                          {file.name}
+                        </span>
+                        <span className="pdf-attached-meta">
+                          {(file.size / (1024 * 1024)).toFixed(2)} MB · {file.mimeType.startsWith("image/") ? "Screenshot / Image" : "PDF Report"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="pdf-remove-btn"
+                        onClick={() => removeAttachedFile(file.id)}
+                        title={`Remove ${file.name}`}
+                        aria-label={`Remove ${file.name}`}
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div
+                className={`pdf-dropzone${attachedFiles.length > 0 ? " compact-dropzone" : ""}${isDragging ? " is-dragover" : ""}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    fileInputRef.current?.click();
+                  }
+                }}
+                aria-label="Upload PDF or Screenshot"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="application/pdf,image/png,image/jpeg,image/webp,.pdf,.png,.jpg,.jpeg,.webp"
+                  onChange={handleFileInputChange}
+                  style={{ display: "none" }}
+                  id="media-upload-input"
+                />
+                <div className="pdf-dropzone-icon">
+                  {attachedFiles.length > 0 ? (
+                    <Plus size={16} aria-hidden="true" />
+                  ) : (
+                    <FileUp size={16} aria-hidden="true" />
+                  )}
+                </div>
+                <div className="pdf-dropzone-text">
+                  <span className="pdf-dropzone-title">
+                    {attachedFiles.length > 0
+                      ? "Attach another PDF or Screenshot (PNG, JPG)"
+                      : "Upload PDF or Screenshot (PNG, JPG, WebP)"}
+                  </span>
+                  <span className="pdf-dropzone-desc">
+                    {attachedFiles.length > 0
+                      ? "Add more files or paste screenshot with Cmd+V"
+                      : "Drag & drop, browse files, or paste clipboard screenshot with Cmd+V"}
+                  </span>
+                </div>
+              </div>
+
+              {fileError && <p className="file-error" role="alert">{fileError}</p>}
+
               <textarea
                 id="coach-feedback"
                 name="coach-feedback"
-                placeholder={"e.g. Excellent vision and reads the game well. Needs to commit to the weaker foot in tight spaces and get shots off faster around the box."}
+                placeholder={
+                  attachedFiles.length > 0
+                    ? "Add optional comments to accompany the attached files (e.g. Focus on decision speed and defensive recovery in the 2nd half)..."
+                    : "e.g. Excellent vision and reads the game well. Needs to commit to the weaker foot in tight spaces and get shots off faster around the box."
+                }
                 value={feedback}
                 onChange={(event) => setFeedback(event.target.value)}
-                required
+                onPaste={handlePaste}
+                required={attachedFiles.length === 0}
               />
-              <span className="field-hint">MATCH OBSERVATIONS, HABITS &amp; AREAS TO WORK ON</span>
+              <span className="field-hint">
+                {attachedFiles.length > 0
+                  ? `${attachedFiles.length} FILE${attachedFiles.length > 1 ? "S" : ""} ATTACHED · EXTRA COMMENTS ABOVE ARE OPTIONAL`
+                  : "TYPE OBSERVATIONS ABOVE, ATTACH A PDF, OR PASTE A SCREENSHOT"}
+              </span>
             </div>
 
             <div className="field-group player-assessment-group">
