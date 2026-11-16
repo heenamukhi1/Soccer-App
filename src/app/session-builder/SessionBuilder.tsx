@@ -13,7 +13,6 @@ import {
   FileText,
   FileUp,
   Gauge,
-  ImageIcon,
   LoaderCircle,
   Library,
   Plus,
@@ -849,11 +848,9 @@ export default function SessionBuilder({
               />
             </div>
 
-            <div className="field-group">
+            <div className="field-group coach-feedback-group">
               <div className="field-label-row">
-                <label htmlFor="coach-feedback">
-                  Coach&apos;s Feedback Notes <span>(Upload PDF/Images or type notes)</span>
-                </label>
+                <label htmlFor="coach-feedback">Coach&apos;s Feedback Notes</label>
               </div>
 
               {attachedFiles.length > 0 && (
@@ -928,14 +925,10 @@ export default function SessionBuilder({
                 <div className="pdf-dropzone-text">
                   <span className="pdf-dropzone-title">
                     {attachedFiles.length > 0
-                      ? "Attach another PDF or Screenshot (PNG, JPG)"
-                      : "Upload PDF or Screenshot (PNG, JPG, WebP)"}
+                      ? "Add another file"
+                      : "Upload a coach report or screenshot"}
                   </span>
-                  <span className="pdf-dropzone-desc">
-                    {attachedFiles.length > 0
-                      ? "Add more files or paste screenshot with Cmd+V"
-                      : "Drag & drop, browse files, or paste clipboard screenshot with Cmd+V"}
-                  </span>
+                  <span className="pdf-dropzone-desc">Drag and drop, browse files, or paste a screenshot with Cmd+V.</span>
                 </div>
               </div>
 
@@ -946,7 +939,7 @@ export default function SessionBuilder({
                 name="coach-feedback"
                 placeholder={
                   attachedFiles.length > 0
-                    ? "Add optional comments to accompany the attached files (e.g. Focus on decision speed and defensive recovery in the 2nd half)..."
+                    ? "Add any context for the attached report (optional)..."
                     : "e.g. Excellent vision and reads the game well. Needs to commit to the weaker foot in tight spaces and get shots off faster around the box."
                 }
                 value={feedback}
@@ -954,11 +947,11 @@ export default function SessionBuilder({
                 onPaste={handlePaste}
                 required={attachedFiles.length === 0}
               />
-              <span className="field-hint">
-                {attachedFiles.length > 0
-                  ? `${attachedFiles.length} FILE${attachedFiles.length > 1 ? "S" : ""} ATTACHED · EXTRA COMMENTS ABOVE ARE OPTIONAL`
-                  : "TYPE OBSERVATIONS ABOVE, ATTACH A PDF, OR PASTE A SCREENSHOT"}
-              </span>
+              {attachedFiles.length > 0 && (
+                <span className="field-hint">
+                  {attachedFiles.length} FILE{attachedFiles.length > 1 ? "S" : ""} ATTACHED
+                </span>
+              )}
             </div>
 
             <div className="field-group player-assessment-group">

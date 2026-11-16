@@ -2,6 +2,17 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Start Next.js development server",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "dev"
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
       "label": "Open in Simple Browser",
       "command": "${input:openSimpleBrowser}",
       "problemMatcher": []
@@ -16,4 +27,3 @@
     }
   ]
 }
-
