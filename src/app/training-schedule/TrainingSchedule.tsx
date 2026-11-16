@@ -20,6 +20,15 @@ type ScheduleItem = {
   type: "drill" | "break";
 };
 
+type PreviousAnalysis = {
+  id: string;
+  createdAt: string;
+  analysis: {
+    rating: number;
+    drills: string[];
+  };
+};
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const EQUIPMENT_OPTIONS = [
   "Soccer ball",
@@ -38,6 +47,7 @@ const SCHEDULE_KEY = "nextlevel-training-schedule";
 const COMPLETED_KEY = "nextlevel-training-completed";
 const COMPLETED_HISTORY_KEY = "nextlevel-training-completed-history";
 const WEEK_KEY = "nextlevel-training-week";
+const PREVIOUS_ANALYSES_KEY = "nextlevel-previous-analyses";
 
 const TIME_OPTIONS = Array.from({ length: 96 }, (_, index) => {
   const hours = String(Math.floor(index / 4)).padStart(2, "0");
@@ -104,6 +114,27 @@ function normalizeCompletedIds(completedIds: string[], schedule: ScheduleItem[])
   })));
 }
 
+function isPreviousAnalysis(value: unknown): value is PreviousAnalysis {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.id !== "string" ||
+    typeof record.createdAt !== "string" ||
+    typeof record.analysis !== "object" ||
+    record.analysis === null
+  ) {
+    return false;
+  }
+  const analysis = record.analysis as Record<string, unknown>;
+  return (
+    typeof analysis.rating === "number" &&
+    Number.isFinite(analysis.rating) &&
+    Array.isArray(analysis.drills) &&
+    analysis.drills.length > 0 &&
+    analysis.drills.every((drill) => typeof drill === "string" && drill.trim().length > 0)
+  );
+}
+
 function adaptDrillForEquipment(name: string, equipment: string[]) {
   const normalizedName = name.toLowerCase();
 
@@ -140,11 +171,76 @@ function adaptDrillForEquipment(name: string, equipment: string[]) {
   return name;
 }
 
-export default function TrainingSchedule() {
+function buildScheduleFromDrills(drills: string[], availability: Availability[], equipment: string[]) {
+  const schedule: ScheduleItem[] = [];
+  const drillCounts = new Map<string, number>();
+  const dayOrder = new Map(DAYS.map((day, index) => [day, index]));
+  const windows = [...availability].sort((a, b) => {
+    const dayDifference = (dayOrder.get(a.day) ?? DAYS.length) - (dayOrder.get(b.day) ?? DAYS.length);
+    return dayDifference || a.startTime.localeCompare(b.startTime);
+  });
+  let drillIndex = 0;
+
+  for (const window of windows) {
+    const [startHour, startMinute] = window.startTime.split(":").map(Number);
+    const [endHour, endMinute] = window.endTime.split(":").map(Number);
+    const start = startHour * 60 + startMinute;
+    const end = endHour * 60 + endMinute;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end - start < 20) continue;
+
+    let cursor = start;
+    let sessionsInWindow = 0;
+    while (cursor + 20 <= end && sessionsInWindow < 2) {
+      let drill = drills[drillIndex % drills.length];
+      let attempts = 0;
+      while ((drillCounts.get(drill) ?? 0) >= 2 && attempts < drills.length) {
+        drillIndex += 1;
+        drill = drills[drillIndex % drills.length];
+        attempts += 1;
+      }
+      if ((drillCounts.get(drill) ?? 0) >= 2) break;
+
+      schedule.push({
+        day: window.day,
+        startTime: `${String(Math.floor(cursor / 60)).padStart(2, "0")}:${String(cursor % 60).padStart(2, "0")}`,
+        name: adaptDrillForEquipment(drill, equipment),
+        durationMinutes: 20,
+        type: "drill",
+      });
+      drillCounts.set(drill, (drillCounts.get(drill) ?? 0) + 1);
+      cursor += 20;
+      sessionsInWindow += 1;
+      drillIndex += 1;
+
+      if (sessionsInWindow < 2 && cursor + 25 <= end) {
+        schedule.push({
+          day: window.day,
+          startTime: `${String(Math.floor(cursor / 60)).padStart(2, "0")}:${String(cursor % 60).padStart(2, "0")}`,
+          name: "Rest break",
+          durationMinutes: 5,
+          type: "break",
+        });
+        cursor += 5;
+      }
+    }
+  }
+
+  return schedule;
+}
+
+export default function TrainingSchedule({
+  initialAnalyses,
+}: {
+  initialAnalyses: { id: string; createdAt: string; analysis: unknown }[];
+}) {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [equipment, setEquipment] = useState<string[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [completed, setCompleted] = useState<string[]>([]);
+  const [previousAnalyses, setPreviousAnalyses] = useState<PreviousAnalysis[]>([]);
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState("");
+  const [showAnalysisPicker, setShowAnalysisPicker] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
   const [mounted, setMounted] = useState(false);
 
   function getScheduleItemId(item: ScheduleItem) {
@@ -189,6 +285,38 @@ export default function TrainingSchedule() {
       }
       return next;
     });
+  }
+
+  function createScheduleFromAnalysis() {
+    const analysis = previousAnalyses.find((item) => item.id === selectedAnalysisId);
+    if (!analysis) {
+      setScheduleError("Choose a previous analysis first.");
+      return;
+    }
+    if (availability.length === 0) {
+      setScheduleError("Add at least one free time before creating a training plan.");
+      return;
+    }
+
+    const nextSchedule = buildScheduleFromDrills(analysis.analysis.drills, availability, equipment);
+    if (nextSchedule.length === 0) {
+      setScheduleError("Your availability needs at least 20 minutes for a training session.");
+      return;
+    }
+
+    try {
+      localStorage.setItem(SCHEDULE_KEY, JSON.stringify(nextSchedule));
+      localStorage.setItem(COMPLETED_KEY, "[]");
+      localStorage.setItem(WEEK_KEY, getCurrentWeekStart());
+      setSchedule(nextSchedule);
+      setCompleted([]);
+      setScheduleError("");
+      setShowAnalysisPicker(false);
+      window.dispatchEvent(new Event("nextlevel:schedule-updated"));
+    } catch (error) {
+      console.error("[training-schedule] Could not create a plan from previous analysis", error);
+      setScheduleError("Could not save this training plan. Please try again.");
+    }
   }
 
   useEffect(() => {
@@ -255,6 +383,34 @@ export default function TrainingSchedule() {
 
     return () => window.clearInterval(weekCheck);
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(PREVIOUS_ANALYSES_KEY) ?? "[]");
+      const localAnalyses = Array.isArray(saved) ? saved.filter(isPreviousAnalysis) : [];
+      const serverAnalyses = initialAnalyses.filter(isPreviousAnalysis);
+      const byId = new Map<string, PreviousAnalysis>();
+      [...serverAnalyses, ...localAnalyses].forEach((analysis) => byId.set(analysis.id, analysis));
+      const nextAnalyses = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      queueMicrotask(() => {
+        setPreviousAnalyses(nextAnalyses);
+        setSelectedAnalysisId((current) =>
+          nextAnalyses.some((analysis) => analysis.id === current)
+            ? current
+            : nextAnalyses[0]?.id ?? "",
+        );
+      });
+    } catch (error) {
+      console.error("[training-schedule] Could not read previous analyses", error);
+      const serverAnalyses = initialAnalyses.filter(isPreviousAnalysis);
+      queueMicrotask(() => {
+        setPreviousAnalyses(serverAnalyses);
+        setSelectedAnalysisId(serverAnalyses[0]?.id ?? "");
+      });
+    }
+  }, [initialAnalyses]);
 
   useEffect(() => {
     function loadSchedule() {
@@ -481,8 +637,76 @@ export default function TrainingSchedule() {
           <div className="schedule-heading">
             <div>
               <h2>Your week</h2>
-              <p>Analyze your performance after setting your availability to place drills here automatically.</p>
+              <p>Choose a new or saved analysis to build a plan around your availability and equipment.</p>
             </div>
+          </div>
+
+          <div className="schedule-plan-actions">
+            <div className="schedule-plan-action-buttons">
+              <Link className="schedule-new-analysis-button" href="/session-builder?view=session">
+                <Plus size={15} aria-hidden="true" />
+                Create a new analysis
+              </Link>
+              <button
+                className="schedule-previous-analysis-button"
+                type="button"
+                onClick={() => {
+                  setShowAnalysisPicker((current) => !current);
+                  setScheduleError("");
+                }}
+                disabled={previousAnalyses.length === 0}
+              >
+                <Clock3 size={14} aria-hidden="true" />
+                Use a previous analysis
+              </button>
+            </div>
+            {previousAnalyses.length === 0 && (
+              <p className="schedule-analysis-note">
+                No saved analyses yet. Create one in Session Builder first.
+              </p>
+            )}
+            {showAnalysisPicker && previousAnalyses.length > 0 && (
+              <div className="schedule-analysis-picker">
+                <label htmlFor="schedule-analysis-select">Choose an analysis from your Library</label>
+                <div className="schedule-analysis-picker-row">
+                  <select
+                    id="schedule-analysis-select"
+                    value={selectedAnalysisId}
+                    onChange={(event) => {
+                      setSelectedAnalysisId(event.target.value);
+                      setScheduleError("");
+                    }}
+                  >
+                    {previousAnalyses.map((analysis) => {
+                      const createdAt = new Date(analysis.createdAt);
+                      const dateLabel = Number.isNaN(createdAt.getTime())
+                        ? "Previous analysis"
+                        : createdAt.toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          });
+                      return (
+                        <option key={analysis.id} value={analysis.id}>
+                          {dateLabel} · {analysis.analysis.rating.toFixed(1)}/10 · {analysis.analysis.drills.length} drills
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    className="schedule-create-plan-button"
+                    type="button"
+                    onClick={createScheduleFromAnalysis}
+                  >
+                    Build schedule
+                  </button>
+                </div>
+                {schedule.length > 0 && (
+                  <p className="schedule-analysis-note">This will replace your current weekly schedule.</p>
+                )}
+              </div>
+            )}
+            {scheduleError && <p className="schedule-build-error" role="alert">{scheduleError}</p>}
           </div>
 
           {mounted && schedule.length ? (
@@ -527,10 +751,7 @@ export default function TrainingSchedule() {
             <div className="schedule-empty">
               <CalendarDays size={24} aria-hidden="true" />
               <h3>No training plan yet</h3>
-              <p>Add your free times and equipment, then analyze coach notes in the Session Builder.</p>
-              <Link className="library-return-button" href="/session-builder">
-                Go to Session Builder
-              </Link>
+              <p>Add your availability, then create a new analysis or build a plan from one in your Library.</p>
             </div>
           )}
         </section>

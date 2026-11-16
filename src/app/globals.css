@@ -138,6 +138,18 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
 .schedule-settings-heading, .schedule-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0 18px; }
 .schedule-settings-heading h2, .schedule-heading h2 { margin: 0; font-size: 22px; font-weight: 560; }
 .schedule-settings-heading p, .schedule-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
+.schedule-plan-actions { display: grid; gap: 12px; margin: 0 0 18px; padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: linear-gradient(135deg, #1a1e18, #151814); }
+.schedule-plan-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.schedule-new-analysis-button, .schedule-previous-analysis-button, .schedule-create-plan-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; border: 1px solid #536240; border-radius: 5px; color: var(--lime); background: #22291b; cursor: pointer; font-size: 10px; font-weight: 560; text-decoration: none; transition: background 150ms, border-color 150ms, transform 150ms; }
+.schedule-new-analysis-button:hover, .schedule-previous-analysis-button:hover:not(:disabled), .schedule-create-plan-button:hover { transform: translateY(-1px); border-color: var(--lime); background: #2a3321; }
+.schedule-previous-analysis-button:disabled { border-color: var(--border); color: var(--muted); background: #171a16; cursor: not-allowed; }
+.schedule-analysis-picker { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.schedule-analysis-picker label { color: var(--text-secondary); font-size: 9px; }
+.schedule-analysis-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.schedule-analysis-picker select { min-width: 0; min-height: 38px; padding: 0 10px; border: 1px solid #353a31; border-radius: 5px; color: var(--text); background: var(--surface-inset); font-size: 10px; }
+.schedule-analysis-picker select:focus-visible { border-color: var(--lime); outline: 2px solid rgb(199 243 107 / 12%); }
+.schedule-analysis-note { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.schedule-build-error { margin: 0; color: var(--coral); font-size: 10px; line-height: 1.5; }
 .schedule-add-button { min-height: 34px; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 0 9px; border: 1px solid #536240; border-radius: 4px; color: var(--lime); background: #22291b; cursor: pointer; font-size: 9px; }
 .schedule-add-button:hover { background: #2c3522; }
 .availability-list { display: grid; gap: 8px; }
@@ -483,6 +495,9 @@ button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px sol
   .side-nav-button { padding-inline: 7px; font-size: 8px; }
   .training-settings, .generated-schedule { padding: 17px 13px; }
   .schedule-settings-heading { align-items: flex-start; }
+  .schedule-plan-action-buttons { display: grid; grid-template-columns: 1fr; }
+  .schedule-new-analysis-button, .schedule-previous-analysis-button { width: 100%; }
+  .schedule-analysis-picker-row { grid-template-columns: 1fr; }
   .availability-row { grid-template-columns: 1fr 1fr; }
   .availability-delete { grid-column: 2; justify-self: end; }
   .equipment-options { grid-template-columns: 1fr; }
